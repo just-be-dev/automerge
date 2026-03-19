@@ -1,7 +1,9 @@
 {
-  "name": "automerge-cloudflare",
+  "name": "dockit",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "devDependencies": {
     "@types/bun": "latest",
     "@typescript/native-preview": "^7.0.0-dev.20260317.1"
