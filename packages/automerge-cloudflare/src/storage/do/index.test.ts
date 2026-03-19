@@ -1,48 +1,20 @@
 import { describe, expect, it, beforeEach } from "bun:test"
+import { Database, type SQLQueryBindings } from "bun:sqlite"
 import { DOStorageAdapter } from "./index.ts"
 
 function createMockStorage(): DurableObjectStorage {
-  const store = new Map<string, unknown>()
+  const db = new Database(":memory:")
 
   return {
-    async get(keyOrKeys: string | string[]) {
-      if (Array.isArray(keyOrKeys)) {
-        const map = new Map()
-        for (const k of keyOrKeys) {
-          const v = store.get(k)
-          if (v !== undefined) map.set(k, v)
+    sql: {
+      exec(query: string, ...bindings: SQLQueryBindings[]) {
+        const stmt = db.prepare(query)
+        if (query.trimStart().startsWith("SELECT")) {
+          return { toArray: () => stmt.all(...bindings) }
         }
-        return map
-      }
-      return store.get(keyOrKeys)
-    },
-    async put(keyOrEntries: string | Record<string, unknown>, value?: unknown) {
-      if (typeof keyOrEntries === "string") {
-        store.set(keyOrEntries, value)
-      } else {
-        for (const [k, v] of Object.entries(keyOrEntries)) {
-          store.set(k, v)
-        }
-      }
-    },
-    async delete(keyOrKeys: string | string[]) {
-      if (Array.isArray(keyOrKeys)) {
-        let count = 0
-        for (const k of keyOrKeys) {
-          if (store.delete(k)) count++
-        }
-        return count
-      }
-      return store.delete(keyOrKeys)
-    },
-    async list(options?: { prefix?: string }) {
-      const map = new Map()
-      for (const [k, v] of store) {
-        if (!options?.prefix || k.startsWith(options.prefix)) {
-          map.set(k, v)
-        }
-      }
-      return map
+        stmt.run(...bindings)
+        return { toArray: () => [] }
+      },
     },
   } as unknown as DurableObjectStorage
 }

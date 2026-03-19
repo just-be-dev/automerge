@@ -1,6 +1,6 @@
 /**
  * A {@link StorageAdapterInterface} implementation that stores data in
- * Cloudflare Durable Object storage.
+ * Cloudflare Durable Object SQLite storage.
  */
 
 import type {
@@ -10,44 +10,78 @@ import type {
 } from "@automerge/automerge-repo"
 
 export class DOStorageAdapter implements StorageAdapterInterface {
-  private storage: DurableObjectStorage
+  private sql: SqlStorage
 
   constructor(storage: DurableObjectStorage) {
-    this.storage = storage
+    this.sql = storage.sql
+    this.sql.exec(
+      `CREATE TABLE IF NOT EXISTS automerge_storage (
+        key TEXT PRIMARY KEY,
+        data BLOB NOT NULL
+      )`
+    )
   }
 
   async load(key: StorageKey): Promise<Uint8Array | undefined> {
-    return this.storage.get<Uint8Array>(joinKey(key))
+    const row = this.sql
+      .exec<{ data: ArrayBuffer }>(
+        "SELECT data FROM automerge_storage WHERE key = ?",
+        joinKey(key)
+      )
+      .toArray()[0]
+    if (!row) return undefined
+    return new Uint8Array(row.data)
   }
 
   async save(key: StorageKey, data: Uint8Array): Promise<void> {
-    await this.storage.put(joinKey(key), data)
+    this.sql.exec(
+      "INSERT INTO automerge_storage (key, data) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data",
+      joinKey(key),
+      data
+    )
   }
 
   async remove(key: StorageKey): Promise<void> {
-    await this.storage.delete(joinKey(key))
+    this.sql.exec(
+      "DELETE FROM automerge_storage WHERE key = ?",
+      joinKey(key)
+    )
   }
 
   async loadRange(keyPrefix: StorageKey): Promise<Chunk[]> {
     const prefix = joinKey(keyPrefix) + "/"
-    const entries = await this.storage.list<Uint8Array>({ prefix })
+    const rows = this.sql
+      .exec<{ key: string; data: ArrayBuffer }>(
+        "SELECT key, data FROM automerge_storage WHERE key LIKE ? || '%'",
+        prefix
+      )
+      .toArray()
 
-    const chunks: Chunk[] = []
-    for (const [k, data] of entries) {
-      chunks.push({ key: splitKey(k), data })
-    }
-    return chunks
+    return rows.map((row) => ({
+      key: splitKey(row.key),
+      data: new Uint8Array(row.data),
+    }))
+  }
+
+  async getChunks(): Promise<Chunk[]> {
+    const rows = this.sql
+      .exec<{ key: string; data: ArrayBuffer }>(
+        "SELECT key, data FROM automerge_storage"
+      )
+      .toArray()
+
+    return rows.map((row) => ({
+      key: splitKey(row.key),
+      data: new Uint8Array(row.data),
+    }))
   }
 
   async removeRange(keyPrefix: StorageKey): Promise<void> {
     const prefix = joinKey(keyPrefix) + "/"
-    const entries = await this.storage.list({ prefix })
-    const keys = [...entries.keys()]
-
-    // DO storage delete accepts up to 128 keys per call
-    for (let i = 0; i < keys.length; i += 128) {
-      await this.storage.delete(keys.slice(i, i + 128))
-    }
+    this.sql.exec(
+      "DELETE FROM automerge_storage WHERE key LIKE ? || '%'",
+      prefix
+    )
   }
 }
 

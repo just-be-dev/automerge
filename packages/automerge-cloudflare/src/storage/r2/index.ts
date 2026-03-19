@@ -52,6 +52,13 @@ export class R2StorageAdapter implements StorageAdapterInterface {
     return chunks
   }
 
+  async saveChunks(chunks: Chunk[], batchSize = 50): Promise<void> {
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const batch = chunks.slice(i, i + batchSize)
+      await Promise.all(batch.map((chunk) => this.save(chunk.key, chunk.data!)))
+    }
+  }
+
   async removeRange(keyPrefix: StorageKey): Promise<void> {
     const prefix = this.toObjectKey(keyPrefix) + "/"
     const keys = await this.listKeys(prefix)
