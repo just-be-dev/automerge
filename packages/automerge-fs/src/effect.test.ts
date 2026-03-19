@@ -4,7 +4,7 @@ import { FileSystem } from "effect/FileSystem"
 import { Repo } from "@automerge/automerge-repo"
 import { AutomergeFsMultiDoc } from "./fs"
 import { InMemoryBlobStore } from "./blob-store"
-import { AutomergeFsFileSystem, AutomergeFsInstance } from "./effect"
+import { AutomergeFsFileSystem, AutomergeFsInstance, makeFs } from "./effect"
 
 function makeTestLayer() {
   return Layer.succeed(
@@ -120,5 +120,49 @@ describe("AutomergeFs Effect FileSystem", () => {
     )
     expect(result.orig).toBe("data")
     expect(result.copy).toBe("data")
+  })
+
+  it("readDirectory recursive lists nested entries", async () => {
+    const program = Effect.gen(function* () {
+      const fs = yield* FileSystem
+      yield* fs.makeDirectory("/src/components", { recursive: true })
+      yield* fs.writeFileString("/src/index.ts", "export {}")
+      yield* fs.writeFileString("/src/components/App.ts", "export const App = 1")
+      return yield* fs.readDirectory("/src", { recursive: true })
+    })
+
+    const result = await Effect.runPromise(
+      Effect.provide(program, makeTestLayer())
+    )
+    expect(result.sort()).toEqual(["components", "components/App.ts", "index.ts"])
+  })
+
+  it("copy recursive duplicates a directory tree", async () => {
+    const program = Effect.gen(function* () {
+      const fs = yield* FileSystem
+      yield* fs.makeDirectory("/src", { recursive: true })
+      yield* fs.writeFileString("/src/a.ts", "a")
+      yield* fs.writeFileString("/src/b.ts", "b")
+      yield* fs.copy("/src", "/backup")
+      return yield* fs.readDirectory("/backup")
+    })
+
+    const result = await Effect.runPromise(
+      Effect.provide(program, makeTestLayer())
+    )
+    expect(result.sort()).toEqual(["a.ts", "b.ts"])
+  })
+
+  it("makeFs convenience constructor works", async () => {
+    const layer = makeFs({ repo: new Repo({ network: [] }) })
+
+    const program = Effect.gen(function* () {
+      const fs = yield* FileSystem
+      yield* fs.writeFileString("/test.txt", "hello from makeFs")
+      return yield* fs.readFileString("/test.txt")
+    })
+
+    const result = await Effect.runPromise(Effect.provide(program, layer))
+    expect(result).toBe("hello from makeFs")
   })
 })
