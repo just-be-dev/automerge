@@ -1,4 +1,7 @@
 {
   "files": [],
-  "references": [{ "path": "packages/automerge-cloudflare" }]
+  "references": [
+    { "path": "packages/automerge-cloudflare" },
+    { "path": "packages/automerge-fs" }
+  ]
 }
