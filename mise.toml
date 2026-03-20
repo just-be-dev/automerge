@@ -20,3 +20,7 @@ run = "tsgo --build"
 [tasks.build]
 run = "bun build"
 
+[tasks.app]
+run = "bun run --cwd apps/{{arg(name=\"app\")}} dev"
+description = "Run an app in dev mode"
+

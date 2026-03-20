@@ -2,7 +2,8 @@
   "name": "dockit",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "devDependencies": {
     "@types/bun": "latest",
