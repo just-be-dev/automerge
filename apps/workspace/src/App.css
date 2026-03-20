@@ -185,3 +185,162 @@ body {
   justify-content: center;
   color: #585b70;
 }
+
+/* PDF Upload Zone */
+.empty-state {
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pdf-upload-zone {
+  width: 240px;
+  height: 120px;
+  border: 2px dashed #45475a;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pdf-upload-zone:hover,
+.pdf-upload-zone.drag-over {
+  border-color: #cba6f7;
+  background: rgba(203, 166, 247, 0.05);
+}
+
+.pdf-upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #585b70;
+  font-size: 13px;
+}
+
+.pdf-upload-icon {
+  font-size: 28px;
+  color: #45475a;
+}
+
+/* PDF Viewer */
+.pdf-hint {
+  color: #585b70;
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.pdf-pages {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.pdf-page-wrapper {
+  background: white;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.pdf-page-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pdf-page-number {
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #585b70;
+  white-space: nowrap;
+}
+
+/* Overlay Fields */
+.overlay-field {
+  cursor: text;
+}
+
+.overlay-field.editing {
+  z-index: 10;
+}
+
+.overlay-input {
+  width: 100%;
+  height: 100%;
+  border: 1.5px solid rgba(203, 166, 247, 0.5);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0 4px;
+  font-size: 12px;
+  color: #1e1e2e;
+  outline: none;
+}
+
+.overlay-input:focus {
+  border-color: #cba6f7;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 2px rgba(203, 166, 247, 0.25);
+}
+
+.overlay-input::placeholder {
+  color: #aaa;
+}
+
+.overlay-checkbox {
+  width: 100%;
+  height: 100%;
+  border: 1.5px solid rgba(203, 166, 247, 0.5);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #1e1e2e;
+  cursor: pointer;
+  user-select: none;
+}
+
+.overlay-checkbox:focus {
+  border-color: #cba6f7;
+  box-shadow: 0 0 0 2px rgba(203, 166, 247, 0.25);
+  outline: none;
+}
+
+.overlay-field-actions {
+  position: absolute;
+  top: -24px;
+  right: 0;
+  display: flex;
+  gap: 2px;
+}
+
+.overlay-field-actions button {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #45475a;
+  border-radius: 3px;
+  background: #313244;
+  color: #cdd6f4;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.overlay-field-actions button:hover {
+  background: #45475a;
+}

@@ -19,7 +19,8 @@
     "prosemirror-state": "^1.4.0",
     "prosemirror-view": "^1.41.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "unpdf": "^1.4.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react"
+import React, { useMemo, useRef, useState } from "react"
 import type { AutomergeFs } from "@just-be/automerge-fs"
 import { normalizePath } from "@just-be/automerge-fs"
 
@@ -8,6 +8,7 @@ interface Props {
   onSelectFile: (path: string) => void
   refreshKey: number
   onRefresh: () => void
+  onPdfUpload: (name: string, data: Uint8Array) => void
 }
 
 interface TreeNode {
@@ -18,7 +19,9 @@ interface TreeNode {
 }
 
 function buildTree(fs: AutomergeFs): TreeNode[] {
-  const allPaths = fs.getAllPaths().filter((p) => p !== "/")
+  const allPaths = fs
+    .getAllPaths()
+    .filter((p) => p !== "/" && !p.endsWith(".overlay.json"))
   const nodes: Map<string, TreeNode> = new Map()
   const roots: TreeNode[] = []
 
@@ -90,7 +93,13 @@ function TreeItem({
         }}
       >
         <span className="icon">
-          {node.isDirectory ? (isOpen ? "\u25BE" : "\u25B8") : "\u25A1"}
+          {node.isDirectory
+            ? isOpen
+              ? "\u25BE"
+              : "\u25B8"
+            : node.name.endsWith(".pdf")
+              ? "\u25A0"
+              : "\u25A1"}
         </span>
         {node.name}
       </div>
@@ -111,7 +120,7 @@ function TreeItem({
   )
 }
 
-export function FileExplorer({ fs, selectedFile, onSelectFile, refreshKey, onRefresh }: Props) {
+export function FileExplorer({ fs, selectedFile, onSelectFile, refreshKey, onRefresh, onPdfUpload }: Props) {
   const tree = useMemo(() => buildTree(fs), [fs, refreshKey])
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     // Expand all directories by default
@@ -152,6 +161,21 @@ export function FileExplorer({ fs, selectedFile, onSelectFile, refreshKey, onRef
     onSelectFile(path)
   }
 
+  const pdfInputRef = useRef<HTMLInputElement>(null)
+
+  const handlePdfUploadClick = () => {
+    pdfInputRef.current?.click()
+  }
+
+  const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !file.name.endsWith(".pdf")) return
+    file.arrayBuffer().then((buf) => {
+      onPdfUpload(file.name, new Uint8Array(buf))
+    })
+    e.target.value = ""
+  }
+
   return (
     <>
       <div className="file-tree">
@@ -169,6 +193,14 @@ export function FileExplorer({ fs, selectedFile, onSelectFile, refreshKey, onRef
       </div>
       <div className="tree-actions">
         <button onClick={handleNewFile}>+ New File</button>
+        <button onClick={handlePdfUploadClick}>+ PDF</button>
+        <input
+          ref={pdfInputRef}
+          type="file"
+          accept=".pdf"
+          style={{ display: "none" }}
+          onChange={handlePdfFileChange}
+        />
       </div>
     </>
   )
