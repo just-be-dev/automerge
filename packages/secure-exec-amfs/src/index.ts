@@ -1,0 +1,1 @@
+export { AutomergeFileSystem } from "./vfs"

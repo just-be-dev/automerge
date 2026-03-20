@@ -1,0 +1,16 @@
+{
+  "name": "@just-be/secure-exec-amfs",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@just-be/automerge-fs": "workspace:*",
+    "@secure-exec/core": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
