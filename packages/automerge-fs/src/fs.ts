@@ -33,7 +33,7 @@ interface TreeEntry {
   symlinkTarget?: string
 }
 
-interface FileDoc {
+export interface FileDoc {
   content: string
 }
 
@@ -538,7 +538,7 @@ export class AutomergeFs {
       const content = await this.readFile(result.resolved)
       await this.writeFile(dest, content)
     } else if (result.entry.type === "directory" && (options?.recursive ?? true)) {
-      await this.mkdir(dest, { recursive: true })
+      this.mkdir(dest, { recursive: true })
       const children = this.readdir(result.resolved)
       const srcNorm = result.resolved
       const destNorm = normalizePath(dest)
@@ -796,6 +796,31 @@ export class AutomergeFs {
     const doc = this.handle.doc()
     if (!doc?.tree) return []
     return Object.keys(doc.tree)
+  }
+
+  // ===========================================================================
+  // Document Access
+  // ===========================================================================
+
+  /**
+   * Get the underlying Automerge DocHandle for a text file.
+   * Useful for integrating with editors like ProseMirror that need
+   * direct access to the CRDT document.
+   * Throws if the path doesn't exist, isn't a file, or is a binary blob.
+   */
+  async getFileDocHandle(path: string): Promise<DocHandle<FileDoc>> {
+    const result = this.resolveEntry(path)
+    if (!result) {
+      throw new Error(`ENOENT: no such file or directory: ${path}`)
+    }
+    const { entry } = result
+    if (entry.type !== "file") {
+      throw new Error(`EISDIR: illegal operation on a directory: ${path}`)
+    }
+    if (!entry.fileDocId) {
+      throw new Error(`No document handle for binary file: ${path}`)
+    }
+    return this.getOrLoadFileHandle(entry.fileDocId)
   }
 
   // ===========================================================================
