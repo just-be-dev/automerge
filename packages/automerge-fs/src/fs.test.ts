@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test"
-import { Repo } from "@automerge/automerge-repo"
+import { Repo, type DocHandle } from "@automerge/automerge-repo"
 import { AutomergeFs } from "./fs"
 import { InMemoryBlobStore } from "./blob-store"
+import type { FileType, FileTypeContext } from "./file-types"
 
 function makeFs() {
   return AutomergeFs.create({
@@ -262,5 +263,164 @@ describe("AutomergeFs direct API", () => {
     const link = entries.find((e) => e.name === "link.txt")
     expect(link?.isSymbolicLink).toBe(true)
     expect(link?.isFile).toBe(false)
+  })
+})
+
+describe("file type system", () => {
+  it("text files are backed by automerge docs", async () => {
+    const fs = makeFs()
+    await fs.writeFile("/hello.txt", "world")
+    const handle = await fs.getFileDocHandle("/hello.txt")
+    expect(handle.doc()?.content).toBe("world")
+  })
+
+  it("binary files are backed by automerge docs with blobRef", async () => {
+    const fs = makeFs()
+    const binary = new Uint8Array([0x00, 0x01, 0xff, 0xfe, 0x80])
+    await fs.writeFile("/bin.dat", binary)
+    // The file should have a doc handle now (not just a raw blobHash)
+    const handle = await fs.getFileDocHandle("/bin.dat")
+    expect(handle.doc()).toBeTruthy()
+    // Round-trip the content
+    const read = await fs.readFile("/bin.dat")
+    expect(read).toEqual(binary)
+  })
+
+  it("overwriting a text file reuses the same doc", async () => {
+    const fs = makeFs()
+    await fs.writeFile("/f.txt", "first")
+    const h1 = await fs.getFileDocHandle("/f.txt")
+    await fs.writeFile("/f.txt", "second")
+    const h2 = await fs.getFileDocHandle("/f.txt")
+    expect(h1.url).toBe(h2.url)
+    expect(h2.doc()?.content).toBe("second")
+  })
+
+  it("custom file type matched by extension", async () => {
+    interface JsonFileDoc { json: string }
+
+    const jsonFileType: FileType<JsonFileDoc> = {
+      name: "json",
+      extensions: [".json"],
+
+      async createDoc(repo, content) {
+        const handle = repo.create<JsonFileDoc>()
+        handle.change((doc) => {
+          doc.json = new TextDecoder().decode(content)
+        })
+        return handle
+      },
+
+      async write(handle, content) {
+        const text = new TextDecoder().decode(content)
+        handle.change((doc) => {
+          doc.json = text
+        })
+      },
+
+      async read(handle) {
+        const doc = handle.doc()
+        return new TextEncoder().encode(doc?.json ?? "")
+      },
+    }
+
+    const fs = AutomergeFs.create({
+      repo: new Repo({ network: [] }),
+      blobStore: new InMemoryBlobStore(),
+      fileTypes: [jsonFileType],
+    })
+
+    await fs.writeFile("/config.json", '{"key": "value"}')
+    const content = new TextDecoder().decode(await fs.readFile("/config.json"))
+    expect(content).toBe('{"key": "value"}')
+
+    // Verify the custom doc shape
+    const handle = await fs.getFileDocHandle("/config.json")
+    const doc = handle.doc() as unknown as JsonFileDoc
+    expect(doc.json).toBe('{"key": "value"}')
+  })
+
+  it("custom file type matched by predicate", async () => {
+    interface UpperFileDoc { upper: string }
+
+    const upperFileType: FileType<UpperFileDoc> = {
+      name: "upper",
+      extensions: [],
+
+      match(path: string) {
+        return path.startsWith("/upper/")
+      },
+
+      async createDoc(repo, content) {
+        const handle = repo.create<UpperFileDoc>()
+        handle.change((doc) => {
+          doc.upper = new TextDecoder().decode(content).toUpperCase()
+        })
+        return handle
+      },
+
+      async write(handle, content) {
+        handle.change((doc) => {
+          doc.upper = new TextDecoder().decode(content).toUpperCase()
+        })
+      },
+
+      async read(handle) {
+        return new TextEncoder().encode(handle.doc()?.upper ?? "")
+      },
+    }
+
+    const fs = AutomergeFs.create({
+      repo: new Repo({ network: [] }),
+      blobStore: new InMemoryBlobStore(),
+      fileTypes: [upperFileType],
+    })
+
+    fs.mkdir("/upper")
+    await fs.writeFile("/upper/hello.txt", "world")
+    const content = new TextDecoder().decode(await fs.readFile("/upper/hello.txt"))
+    expect(content).toBe("WORLD")
+
+    // A file outside /upper/ uses the default text type
+    await fs.writeFile("/normal.txt", "world")
+    const normal = new TextDecoder().decode(await fs.readFile("/normal.txt"))
+    expect(normal).toBe("world")
+  })
+
+  it("fileTypeRegistry exposes registered types", () => {
+    const fs = makeFs()
+    const registry = fs.fileTypeRegistry
+    expect(registry.get("text")).toBeTruthy()
+    expect(registry.get("blob")).toBeTruthy()
+  })
+
+  it("register file type after creation", async () => {
+    const fs = makeFs()
+
+    interface CsvFileDoc { csv: string }
+
+    fs.fileTypeRegistry.register({
+      name: "csv",
+      extensions: [".csv"],
+      async createDoc(repo, content) {
+        const handle = repo.create<CsvFileDoc>()
+        handle.change((doc) => {
+          doc.csv = new TextDecoder().decode(content)
+        })
+        return handle
+      },
+      async write(handle: DocHandle<CsvFileDoc>, content) {
+        handle.change((doc) => {
+          doc.csv = new TextDecoder().decode(content)
+        })
+      },
+      async read(handle: DocHandle<CsvFileDoc>) {
+        return new TextEncoder().encode(handle.doc()?.csv ?? "")
+      },
+    })
+
+    await fs.writeFile("/data.csv", "a,b,c")
+    const content = new TextDecoder().decode(await fs.readFile("/data.csv"))
+    expect(content).toBe("a,b,c")
   })
 })
