@@ -1,5 +1,5 @@
 /**
- * Default text file type.
+ * Default text file handler.
  *
  * Stores file content as a string in the Automerge document using
  * `Automerge.updateText()` for character-level CRDT merging.
@@ -7,7 +7,7 @@
 
 import * as Automerge from "@automerge/automerge"
 import type { Repo, DocHandle } from "@automerge/automerge-repo"
-import type { FileType } from "../file-types"
+import type { FileHandler } from "../file-handlers"
 
 export interface TextFileDoc {
   content: string
@@ -15,7 +15,7 @@ export interface TextFileDoc {
 
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true })
 
-export const textFileType: FileType<TextFileDoc> = {
+export const textFileHandler: FileHandler<TextFileDoc> = {
   name: "text",
   extensions: [],
 

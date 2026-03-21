@@ -2,13 +2,13 @@ import { describe, expect, it } from "bun:test"
 import { Repo, type DocHandle } from "@automerge/automerge-repo"
 import { AutomergeFs } from "./fs"
 import { InMemoryBlobStore } from "./blob-store"
-import type { FileType } from "./file-types"
-import { createBlobFileType } from "./file-types/blob"
+import type { FileHandler } from "./file-handlers"
+import { createBlobFileHandler } from "./file-handlers/blob"
 
 function makeFs() {
   return AutomergeFs.create({
     repo: new Repo({ network: [] }),
-    fileTypes: [createBlobFileType(new InMemoryBlobStore())],
+    fileHandlers: [createBlobFileHandler(new InMemoryBlobStore())],
   })
 }
 
@@ -126,7 +126,7 @@ describe("AutomergeFs direct API", () => {
     expect(content).toBe("second")
   })
 
-  it("binary files are stored via blob file type", async () => {
+  it("binary files are stored via blob file handler", async () => {
     const fs = makeFs()
     const binary = new Uint8Array([0x00, 0x01, 0xff, 0xfe, 0x80])
     await fs.writeFile("/bin.dat", binary)
@@ -267,7 +267,7 @@ describe("AutomergeFs direct API", () => {
   })
 })
 
-describe("file type system", () => {
+describe("file handler system", () => {
   it("text files are backed by automerge docs", async () => {
     const fs = makeFs()
     await fs.writeFile("/hello.txt", "world")
@@ -295,10 +295,10 @@ describe("file type system", () => {
     expect(h2.doc()?.content).toBe("second")
   })
 
-  it("custom file type matched by extension", async () => {
+  it("custom file handler matched by extension", async () => {
     interface JsonFileDoc { json: string }
 
-    const jsonFileType: FileType<JsonFileDoc> = {
+    const jsonFileHandler: FileHandler<JsonFileDoc> = {
       name: "json",
       extensions: [".json"],
 
@@ -325,7 +325,7 @@ describe("file type system", () => {
 
     const fs = AutomergeFs.create({
       repo: new Repo({ network: [] }),
-      fileTypes: [jsonFileType],
+      fileHandlers: [jsonFileHandler],
     })
 
     await fs.writeFile("/config.json", '{"key": "value"}')
@@ -338,10 +338,10 @@ describe("file type system", () => {
     expect(doc.json).toBe('{"key": "value"}')
   })
 
-  it("custom file type matched by predicate", async () => {
+  it("custom file handler matched by predicate", async () => {
     interface UpperFileDoc { upper: string }
 
-    const upperFileType: FileType<UpperFileDoc> = {
+    const upperFileHandler: FileHandler<UpperFileDoc> = {
       name: "upper",
       extensions: [],
 
@@ -370,7 +370,7 @@ describe("file type system", () => {
 
     const fs = AutomergeFs.create({
       repo: new Repo({ network: [] }),
-      fileTypes: [upperFileType],
+      fileHandlers: [upperFileHandler],
     })
 
     fs.mkdir("/upper")
@@ -378,25 +378,25 @@ describe("file type system", () => {
     const content = new TextDecoder().decode(await fs.readFile("/upper/hello.txt"))
     expect(content).toBe("WORLD")
 
-    // A file outside /upper/ uses the default text type
+    // A file outside /upper/ uses the default text handler
     await fs.writeFile("/normal.txt", "world")
     const normal = new TextDecoder().decode(await fs.readFile("/normal.txt"))
     expect(normal).toBe("world")
   })
 
-  it("fileTypeRegistry exposes registered types", () => {
+  it("fileHandlerRegistry exposes registered handlers", () => {
     const fs = makeFs()
-    const registry = fs.fileTypeRegistry
+    const registry = fs.fileHandlerRegistry
     expect(registry.get("text")).toBeTruthy()
     expect(registry.get("blob")).toBeTruthy()
   })
 
-  it("register file type after creation", async () => {
+  it("register file handler after creation", async () => {
     const fs = makeFs()
 
     interface CsvFileDoc { csv: string }
 
-    fs.fileTypeRegistry.register({
+    fs.fileHandlerRegistry.register({
       name: "csv",
       extensions: [".csv"],
       async createDoc(repo, content) {
@@ -421,7 +421,7 @@ describe("file type system", () => {
     expect(content).toBe("a,b,c")
   })
 
-  it("fs works without blob file type (text only)", async () => {
+  it("fs works without blob file handler (text only)", async () => {
     const fs = AutomergeFs.create({
       repo: new Repo({ network: [] }),
     })

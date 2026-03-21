@@ -2,20 +2,20 @@
  * AutomergeFs — a virtual file system backed by Automerge CRDTs.
  *
  * Every file is backed by an Automerge document. The shape of that document
- * depends on the file's type — a pluggable FileType registry controls how
+ * depends on the file's handler — a pluggable FileHandlerRegistry controls how
  * content is read from / written to the backing doc.
  *
- * The built-in "text" type stores content as a string with updateText() for
- * CRDT merging. Additional types (e.g. blob) can be registered via the
- * `fileTypes` option.
+ * The built-in "text" handler stores content as a string with updateText() for
+ * CRDT merging. Additional handlers (e.g. blob) can be registered via the
+ * `fileHandlers` option.
  *
  * Directory tree structure is maintained in a single root document.
  */
 
 import * as Automerge from "@automerge/automerge"
 import { Repo, type DocHandle, type AutomergeUrl } from "@automerge/automerge-repo"
-import { FileTypeRegistry, type FileType } from "./file-types"
-import { textFileType, type TextFileDoc } from "./file-types/text"
+import { FileHandlerRegistry, type FileHandler } from "./file-handlers"
+import { textFileHandler, type TextFileDoc } from "./file-handlers/text"
 
 // =============================================================================
 // Document Schema
@@ -36,7 +36,7 @@ interface FsNode {
     ctime: number
   }
   fileDocId?: string
-  fileType?: string
+  fileHandler?: string
   symlinkTarget?: string
 }
 
@@ -103,31 +103,31 @@ export class AutomergeFs {
   private handle: DocHandle<FsTree>
   private repo: Repo
   private fileHandles: Map<string, DocHandle<any>> = new Map()
-  private registry: FileTypeRegistry
+  private registry: FileHandlerRegistry
 
   private constructor(
     handle: DocHandle<FsTree>,
     repo: Repo,
-    registry: FileTypeRegistry,
+    registry: FileHandlerRegistry,
   ) {
     this.handle = handle
     this.repo = repo
     this.registry = registry
   }
 
-  private static buildRegistry(fileTypes?: FileType[]): FileTypeRegistry {
-    const registry = new FileTypeRegistry()
+  private static buildRegistry(fileHandlers?: FileHandler[]): FileHandlerRegistry {
+    const registry = new FileHandlerRegistry()
     // Text first — it's the fallback default
-    registry.register(textFileType)
-    if (fileTypes) {
-      for (const ft of fileTypes) registry.register(ft)
+    registry.register(textFileHandler)
+    if (fileHandlers) {
+      for (const fh of fileHandlers) registry.register(fh)
     }
     return registry
   }
 
   static create(opts: {
     repo: Repo
-    fileTypes?: FileType[]
+    fileHandlers?: FileHandler[]
   }): AutomergeFs {
     const handle = opts.repo.create<FsTree>()
     handle.change((doc) => {
@@ -147,21 +147,21 @@ export class AutomergeFs {
     return new AutomergeFs(
       handle,
       opts.repo,
-      AutomergeFs.buildRegistry(opts.fileTypes),
+      AutomergeFs.buildRegistry(opts.fileHandlers),
     )
   }
 
   static async load(opts: {
     repo: Repo
     rootDocUrl: string
-    fileTypes?: FileType[]
+    fileHandlers?: FileHandler[]
   }): Promise<AutomergeFs> {
     const handle = await opts.repo.find<FsTree>(opts.rootDocUrl as AutomergeUrl)
     await handle.whenReady()
     return new AutomergeFs(
       handle,
       opts.repo,
-      AutomergeFs.buildRegistry(opts.fileTypes),
+      AutomergeFs.buildRegistry(opts.fileHandlers),
     )
   }
 
@@ -169,8 +169,8 @@ export class AutomergeFs {
     return this.handle.url
   }
 
-  /** Access the file type registry (e.g. to register types after creation). */
-  get fileTypeRegistry(): FileTypeRegistry {
+  /** Access the file handler registry (e.g. to register handlers after creation). */
+  get fileHandlerRegistry(): FileHandlerRegistry {
     return this.registry
   }
 
@@ -252,11 +252,11 @@ export class AutomergeFs {
     return handle as DocHandle<T>
   }
 
-  /** Resolve the FileType for an existing tree entry. */
-  private resolveFileType(entry: FsNode): FileType {
-    if (entry.fileType) {
-      const ft = this.registry.get(entry.fileType)
-      if (ft) return ft
+  /** Resolve the FileHandler for an existing tree entry. */
+  private resolveFileHandler(entry: FsNode): FileHandler {
+    if (entry.fileHandler) {
+      const fh = this.registry.get(entry.fileHandler)
+      if (fh) return fh
     }
     return this.registry.get("text")!
   }
@@ -276,9 +276,9 @@ export class AutomergeFs {
     }
 
     if (entry.fileDocId) {
-      const ft = this.resolveFileType(entry)
+      const fh = this.resolveFileHandler(entry)
       const handle = await this.getOrLoadFileHandle(entry.fileDocId)
-      return ft.read(handle)
+      return fh.read(handle)
     }
 
     return new Uint8Array(0)
@@ -311,19 +311,19 @@ export class AutomergeFs {
       ctime: existing?.metadata.ctime ?? now,
     }
 
-    // Determine the file type for this write
-    let ft: FileType
-    if (existing?.fileType) {
-      // Reuse the existing file's type
-      ft = this.registry.get(existing.fileType) ?? this.registry.resolve(normalized, bytes)
+    // Determine the file handler for this write
+    let fh: FileHandler
+    if (existing?.fileHandler) {
+      // Reuse the existing file's handler
+      fh = this.registry.get(existing.fileHandler) ?? this.registry.resolve(normalized, bytes)
     } else {
-      ft = this.registry.resolve(normalized, bytes)
+      fh = this.registry.resolve(normalized, bytes)
     }
 
-    if (existing?.fileDocId && existing.fileType === ft.name) {
-      // Same file type — update in place
+    if (existing?.fileDocId && existing.fileHandler === fh.name) {
+      // Same handler — update in place
       const handle = await this.getOrLoadFileHandle(existing.fileDocId)
-      await ft.write(handle, bytes)
+      await fh.write(handle, bytes)
 
       this.setEntry(normalized, {
         type: "file",
@@ -331,11 +331,11 @@ export class AutomergeFs {
         name: getBasename(normalized),
         metadata,
         fileDocId: existing.fileDocId,
-        fileType: ft.name,
+        fileHandler: fh.name,
       })
     } else {
-      // New file or type changed — create a new doc
-      const handle = await ft.createDoc(this.repo, bytes)
+      // New file or handler changed — create a new doc
+      const handle = await fh.createDoc(this.repo, bytes)
       this.fileHandles.set(handle.url, handle)
 
       // Clean up old doc handle reference
@@ -349,7 +349,7 @@ export class AutomergeFs {
         name: getBasename(normalized),
         metadata,
         fileDocId: handle.url,
-        fileType: ft.name,
+        fileHandler: fh.name,
       })
     }
   }
@@ -496,7 +496,7 @@ export class AutomergeFs {
         },
       }
       if (srcEntry.fileDocId) newEntry.fileDocId = srcEntry.fileDocId
-      if (srcEntry.fileType) newEntry.fileType = srcEntry.fileType
+      if (srcEntry.fileHandler) newEntry.fileHandler = srcEntry.fileHandler
 
       this.setEntry(destNorm, newEntry)
       this.deleteEntry(oldPath)
@@ -706,7 +706,7 @@ export class AutomergeFs {
       },
     }
     if (result.entry.fileDocId) newEntry.fileDocId = result.entry.fileDocId
-    if (result.entry.fileType) newEntry.fileType = result.entry.fileType
+    if (result.entry.fileHandler) newEntry.fileHandler = result.entry.fileHandler
 
     this.setEntry(normalized, newEntry)
   }

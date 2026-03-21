@@ -4,7 +4,7 @@ import { FileSystem } from "effect/FileSystem"
 import { Repo } from "@automerge/automerge-repo"
 import { AutomergeFs } from "./fs"
 import { InMemoryBlobStore } from "./blob-store"
-import { createBlobFileType } from "./file-types/blob"
+import { createBlobFileHandler } from "./file-handlers/blob"
 import { AutomergeFsFileSystem, AutomergeFsInstance, InMemoryBlobStoreLayer, makeFs } from "./effect"
 
 function makeTestLayer() {
@@ -12,7 +12,7 @@ function makeTestLayer() {
     AutomergeFsInstance,
     AutomergeFs.create({
       repo: new Repo({ network: [] }),
-      fileTypes: [createBlobFileType(new InMemoryBlobStore())],
+      fileHandlers: [createBlobFileHandler(new InMemoryBlobStore())],
     })
   ).pipe((instanceLayer) => Layer.provide(AutomergeFsFileSystem, instanceLayer))
 }

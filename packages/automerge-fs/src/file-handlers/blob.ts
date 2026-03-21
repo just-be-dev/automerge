@@ -1,16 +1,16 @@
 /**
- * Blob file type.
+ * Blob file handler.
  *
  * Stores binary data in a BlobStore and keeps a reference (hash) in the
  * Automerge document. The doc itself is lightweight — just a pointer.
  *
- * Use `createBlobFileType(blobStore)` to create an instance that closes
+ * Use `createBlobFileHandler(blobStore)` to create an instance that closes
  * over the blob store. The fs itself doesn't know about blob storage.
  */
 
 import type { Repo, DocHandle } from "@automerge/automerge-repo"
 import type { BlobStore } from "../../blob-store"
-import type { FileType } from "../file-types"
+import type { FileHandler } from "../file-handlers"
 
 export interface BlobFileDoc {
   blobRef: string
@@ -23,7 +23,7 @@ async function createBlobHash(data: Uint8Array): Promise<string> {
     .join("")
 }
 
-export function createBlobFileType(blobStore: BlobStore): FileType<BlobFileDoc> {
+export function createBlobFileHandler(blobStore: BlobStore): FileHandler<BlobFileDoc> {
   return {
     name: "blob",
     extensions: [],
