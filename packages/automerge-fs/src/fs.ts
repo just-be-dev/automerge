@@ -14,11 +14,11 @@ import type { BlobStore } from "./blob-store"
 // Document Schema
 // =============================================================================
 
-interface FsRootDoc {
-  tree: Record<string, TreeEntry>
+interface FsTree {
+  tree: Record<string, FsNode>
 }
 
-interface TreeEntry {
+interface FsNode {
   type: "file" | "directory" | "symlink"
   parent: string | null
   name: string
@@ -84,7 +84,7 @@ export function joinPath(parent: string, child: string): string {
 // AutomergeFs
 // =============================================================================
 
-function toStatInfo(entry: TreeEntry): StatInfo {
+function toStatInfo(entry: FsNode): StatInfo {
   return {
     size: entry.metadata.size,
     isFile: entry.type === "file",
@@ -99,19 +99,19 @@ function toStatInfo(entry: TreeEntry): StatInfo {
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true })
 
 export class AutomergeFs {
-  private handle: DocHandle<FsRootDoc>
+  private handle: DocHandle<FsTree>
   private repo: Repo
   private blobStore: BlobStore
   private fileHandles: Map<string, DocHandle<FileDoc>> = new Map()
 
-  private constructor(handle: DocHandle<FsRootDoc>, repo: Repo, blobStore: BlobStore) {
+  private constructor(handle: DocHandle<FsTree>, repo: Repo, blobStore: BlobStore) {
     this.handle = handle
     this.repo = repo
     this.blobStore = blobStore
   }
 
   static create(opts: { repo: Repo; blobStore: BlobStore }): AutomergeFs {
-    const handle = opts.repo.create<FsRootDoc>()
+    const handle = opts.repo.create<FsTree>()
     handle.change((doc) => {
       doc.tree = {}
       doc.tree["/"] = {
@@ -134,7 +134,7 @@ export class AutomergeFs {
     blobStore: BlobStore
     rootDocUrl: string
   }): Promise<AutomergeFs> {
-    const handle = await opts.repo.find<FsRootDoc>(opts.rootDocUrl as AutomergeUrl)
+    const handle = await opts.repo.find<FsTree>(opts.rootDocUrl as AutomergeUrl)
     await handle.whenReady()
     return new AutomergeFs(handle, opts.repo, opts.blobStore)
   }
@@ -154,7 +154,7 @@ export class AutomergeFs {
    * Returns the resolved path and its (non-symlink) entry, or null if not found.
    * Throws ELOOP on symlink cycles.
    */
-  private resolveEntry(path: string): { resolved: string; entry: TreeEntry } | null {
+  private resolveEntry(path: string): { resolved: string; entry: FsNode } | null {
     let current = normalizePath(path)
     const seen = new Set<string>()
 
@@ -183,13 +183,13 @@ export class AutomergeFs {
   // Entry Management
   // ===========================================================================
 
-  private getEntry(path: string): TreeEntry | null {
+  private getEntry(path: string): FsNode | null {
     const normalized = normalizePath(path)
     const doc = this.handle.doc()
     return doc?.tree?.[normalized] ?? null
   }
 
-  private setEntry(path: string, entry: TreeEntry): void {
+  private setEntry(path: string, entry: FsNode): void {
     const normalized = normalizePath(path)
     this.handle.change((doc) => {
       if (!doc.tree) {
@@ -477,7 +477,7 @@ export class AutomergeFs {
       }
 
       const now = Date.now()
-      const newEntry: TreeEntry = {
+      const newEntry: FsNode = {
         type: srcEntry.type,
         parent: parentPath,
         name: getBasename(destNorm),
@@ -691,7 +691,7 @@ export class AutomergeFs {
     }
 
     const now = Date.now()
-    const newEntry: TreeEntry = {
+    const newEntry: FsNode = {
       type: "file",
       parent: parentPath,
       name: getBasename(normalized),
