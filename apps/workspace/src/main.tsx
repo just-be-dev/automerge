@@ -19,8 +19,8 @@ async function initFs(): Promise<AutomergeFs> {
     try {
       return await AutomergeFs.load({
         repo,
-        blobStore: new InMemoryBlobStore(),
         rootDocUrl: savedUrl,
+        blobStore: new InMemoryBlobStore(),
       })
     } catch {
       // Stored URL invalid — fall through to create fresh

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import type { AutomergeFs, FileDoc } from "@just-be/automerge-fs"
+import type { AutomergeFs, TextFileDoc } from "@just-be/automerge-fs"
 import { EditorState } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
 import { exampleSetup } from "prosemirror-example-setup"

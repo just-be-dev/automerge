@@ -12,6 +12,7 @@ import { systemError, badArgument, type PlatformError } from "effect/PlatformErr
 import type { Repo } from "@automerge/automerge-repo"
 import { AutomergeFs, normalizePath, joinPath } from "./fs"
 import { InMemoryBlobStore, type BlobStore } from "./blob-store"
+import type { FileHandler } from "./file-handlers"
 
 // =============================================================================
 // Service Tags
@@ -365,6 +366,7 @@ export const AutomergeFsFileSystem: Layer.Layer<FileSystem, never, AutomergeFsIn
  */
 export const makeFs = (opts: {
   repo: Repo
+  fileHandlers?: FileHandler[]
 }): Layer.Layer<FileSystem, never, BlobStoreTag> =>
   Layer.provide(
     AutomergeFsFileSystem,
@@ -372,7 +374,11 @@ export const makeFs = (opts: {
       AutomergeFsInstance,
       Effect.gen(function* () {
         const blobStore = yield* BlobStoreTag
-        return AutomergeFs.create({ repo: opts.repo, blobStore })
+        return AutomergeFs.create({
+          repo: opts.repo,
+          blobStore,
+          fileHandlers: opts.fileHandlers,
+        })
       })
     )
   )

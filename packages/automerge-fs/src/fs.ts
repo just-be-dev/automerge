@@ -1,13 +1,20 @@
 /**
  * AutomergeFs — a virtual file system backed by Automerge CRDTs.
  *
- * Uses one Automerge document per text file with updateText() for
- * character-level CRDT merging. Binary files are stored in a BlobStore.
+ * Every file is backed by an Automerge document. The shape of that document
+ * depends on the file's handler — a pluggable FileHandlerRegistry controls how
+ * content is read from / written to the backing doc.
+ *
+ * The built-in "text" handler stores content as a string with updateText() for
+ * CRDT merging. Additional handlers (e.g. blob) can be registered via the
+ * `fileHandlers` option.
+ *
  * Directory tree structure is maintained in a single root document.
  */
 
 import * as Automerge from "@automerge/automerge"
 import { Repo, type DocHandle, type AutomergeUrl } from "@automerge/automerge-repo"
+import { FileHandlerRegistry, type FileHandler, textFileHandler, type TextFileDoc, createBlobFileHandler } from "./file-handlers"
 import type { BlobStore } from "./blob-store"
 
 // =============================================================================
@@ -29,12 +36,7 @@ interface FsNode {
     ctime: number
   }
   fileDocId?: string
-  blobHash?: string
   symlinkTarget?: string
-}
-
-export interface FileDoc {
-  content: string
 }
 
 export interface StatInfo {
@@ -96,21 +98,40 @@ function toStatInfo(entry: FsNode): StatInfo {
   }
 }
 
-const utf8Decoder = new TextDecoder("utf-8", { fatal: true })
-
 export class AutomergeFs {
   private handle: DocHandle<FsTree>
   private repo: Repo
-  private blobStore: BlobStore
-  private fileHandles: Map<string, DocHandle<FileDoc>> = new Map()
+  private fileHandles: Map<string, DocHandle<any>> = new Map()
+  private registry: FileHandlerRegistry
 
-  private constructor(handle: DocHandle<FsTree>, repo: Repo, blobStore: BlobStore) {
+  private constructor(
+    handle: DocHandle<FsTree>,
+    repo: Repo,
+    registry: FileHandlerRegistry,
+  ) {
     this.handle = handle
     this.repo = repo
-    this.blobStore = blobStore
+    this.registry = registry
   }
 
-  static create(opts: { repo: Repo; blobStore: BlobStore }): AutomergeFs {
+  private static buildRegistry(opts: { blobStore?: BlobStore; fileHandlers?: FileHandler[] }): FileHandlerRegistry {
+    const registry = new FileHandlerRegistry()
+    // Text first — it's the fallback default
+    registry.register(textFileHandler)
+    if (opts.blobStore) {
+      registry.register(createBlobFileHandler(opts.blobStore))
+    }
+    if (opts.fileHandlers) {
+      for (const fh of opts.fileHandlers) registry.register(fh)
+    }
+    return registry
+  }
+
+  static create(opts: {
+    repo: Repo
+    blobStore?: BlobStore
+    fileHandlers?: FileHandler[]
+  }): AutomergeFs {
     const handle = opts.repo.create<FsTree>()
     handle.change((doc) => {
       doc.tree = {}
@@ -126,21 +147,35 @@ export class AutomergeFs {
         },
       }
     })
-    return new AutomergeFs(handle, opts.repo, opts.blobStore)
+    return new AutomergeFs(
+      handle,
+      opts.repo,
+      AutomergeFs.buildRegistry(opts),
+    )
   }
 
   static async load(opts: {
     repo: Repo
-    blobStore: BlobStore
     rootDocUrl: string
+    blobStore?: BlobStore
+    fileHandlers?: FileHandler[]
   }): Promise<AutomergeFs> {
     const handle = await opts.repo.find<FsTree>(opts.rootDocUrl as AutomergeUrl)
     await handle.whenReady()
-    return new AutomergeFs(handle, opts.repo, opts.blobStore)
+    return new AutomergeFs(
+      handle,
+      opts.repo,
+      AutomergeFs.buildRegistry(opts),
+    )
   }
 
   get rootDocUrl(): string {
     return this.handle.url
+  }
+
+  /** Access the file handler registry (e.g. to register handlers after creation). */
+  get fileHandlerRegistry(): FileHandlerRegistry {
+    return this.registry
   }
 
   // ===========================================================================
@@ -212,22 +247,13 @@ export class AutomergeFs {
   // File Handle Management
   // ===========================================================================
 
-  private async getOrLoadFileHandle(docId: string): Promise<DocHandle<FileDoc>> {
+  private async getOrLoadFileHandle<T = any>(docId: string): Promise<DocHandle<T>> {
     let handle = this.fileHandles.get(docId)
-    if (handle) return handle
-    handle = await this.repo.find<FileDoc>(docId as AutomergeUrl)
+    if (handle) return handle as DocHandle<T>
+    handle = await this.repo.find<T>(docId as AutomergeUrl)
     await handle.whenReady()
     this.fileHandles.set(docId, handle)
-    return handle
-  }
-
-  private createFileDoc(initialContent: string): DocHandle<FileDoc> {
-    const handle = this.repo.create<FileDoc>()
-    handle.change((doc) => {
-      doc.content = initialContent
-    })
-    this.fileHandles.set(handle.url, handle)
-    return handle
+    return handle as DocHandle<T>
   }
 
   // ===========================================================================
@@ -239,23 +265,15 @@ export class AutomergeFs {
     if (!result) {
       throw new Error(`ENOENT: no such file or directory: ${path}`)
     }
-    const { entry } = result
+    const { entry, resolved } = result
     if (entry.type !== "file") {
       throw new Error(`EISDIR: illegal operation on a directory: ${path}`)
     }
 
-    if (entry.blobHash) {
-      const blob = await this.blobStore.get(entry.blobHash)
-      if (!blob) {
-        throw new Error(`Blob not found: ${entry.blobHash}`)
-      }
-      return blob
-    }
-
     if (entry.fileDocId) {
       const handle = await this.getOrLoadFileHandle(entry.fileDocId)
-      const doc = handle.doc()
-      return new TextEncoder().encode(doc?.content ?? "")
+      const fh = this.registry.resolveForRead(resolved, handle.doc())
+      return fh.read(handle)
     }
 
     return new Uint8Array(0)
@@ -277,14 +295,6 @@ export class AutomergeFs {
     const bytes =
       typeof content === "string" ? new TextEncoder().encode(content) : content
     const size = bytes.length
-    let binary = false
-    if (typeof content !== "string") {
-      try {
-        utf8Decoder.decode(bytes)
-      } catch {
-        binary = true
-      }
-    }
 
     const now = Date.now()
     const existing = this.getEntry(normalized)
@@ -296,48 +306,48 @@ export class AutomergeFs {
       ctime: existing?.metadata.ctime ?? now,
     }
 
-    if (binary) {
-      const blobHash = await this.createBlobHash(bytes)
-      await this.blobStore.set(blobHash, bytes)
+    const fh = this.registry.resolveForWrite(normalized, bytes)
 
-      if (existing?.fileDocId) {
-        this.fileHandles.delete(existing.fileDocId)
-      }
+    if (existing?.fileDocId) {
+      const handle = await this.getOrLoadFileHandle(existing.fileDocId)
+      const existingFh = this.registry.resolveForRead(normalized, handle.doc())
 
-      this.setEntry(normalized, {
-        type: "file",
-        parent: parentPath,
-        name: getBasename(normalized),
-        metadata,
-        blobHash,
-      })
-    } else {
-      const text =
-        typeof content === "string" ? content : new TextDecoder().decode(bytes)
+      if (existingFh.name === fh.name) {
+        // Same handler — update in place
+        await fh.write(handle, bytes)
 
-      let fileDocId: string
-
-      if (existing?.fileDocId) {
-        const handle = await this.getOrLoadFileHandle(existing.fileDocId)
-        handle.change((doc) => {
-          Automerge.updateText(doc, ["content"], text)
+        this.setEntry(normalized, {
+          type: "file",
+          parent: parentPath,
+          name: getBasename(normalized),
+          metadata,
+          fileDocId: existing.fileDocId,
         })
-        fileDocId = existing.fileDocId
       } else {
-        const handle = this.createFileDoc(text)
-        fileDocId = handle.url
-      }
+        // Handler changed — create a new doc
+        const newHandle = await fh.createDoc(this.repo, bytes)
+        this.fileHandles.set(newHandle.url, newHandle)
+        this.fileHandles.delete(existing.fileDocId)
 
-      if (existing?.blobHash) {
-        await this.blobStore.delete(existing.blobHash)
+        this.setEntry(normalized, {
+          type: "file",
+          parent: parentPath,
+          name: getBasename(normalized),
+          metadata,
+          fileDocId: newHandle.url,
+        })
       }
+    } else {
+      // New file — create doc
+      const handle = await fh.createDoc(this.repo, bytes)
+      this.fileHandles.set(handle.url, handle)
 
       this.setEntry(normalized, {
         type: "file",
         parent: parentPath,
         name: getBasename(normalized),
         metadata,
-        fileDocId,
+        fileDocId: handle.url,
       })
     }
   }
@@ -444,13 +454,8 @@ export class AutomergeFs {
       }
     }
 
-    if (entry.type === "file" && entry.blobHash) {
-      if (!this.hasOtherReferences(normalized, "blobHash", entry.blobHash)) {
-        await this.blobStore.delete(entry.blobHash)
-      }
-    }
     if (entry.type === "file" && entry.fileDocId) {
-      if (!this.hasOtherReferences(normalized, "fileDocId", entry.fileDocId)) {
+      if (!this.hasOtherFileDocRef(normalized, entry.fileDocId)) {
         this.fileHandles.delete(entry.fileDocId)
       }
     }
@@ -489,7 +494,6 @@ export class AutomergeFs {
         },
       }
       if (srcEntry.fileDocId) newEntry.fileDocId = srcEntry.fileDocId
-      if (srcEntry.blobHash) newEntry.blobHash = srcEntry.blobHash
 
       this.setEntry(destNorm, newEntry)
       this.deleteEntry(oldPath)
@@ -604,17 +608,13 @@ export class AutomergeFs {
 
   /**
    * Check whether any tree entry OTHER than `excludePath` references the given
-   * fileDocId or blobHash. Used to decide if cleanup is safe on remove.
+   * fileDocId. Used to decide if cleanup is safe on remove.
    */
-  private hasOtherReferences(
-    excludePath: string,
-    key: "fileDocId" | "blobHash",
-    value: string
-  ): boolean {
+  private hasOtherFileDocRef(excludePath: string, fileDocId: string): boolean {
     const doc = this.handle.doc()
     if (!doc?.tree) return false
     for (const [p, entry] of Object.entries(doc.tree)) {
-      if (p !== excludePath && entry[key] === value) return true
+      if (p !== excludePath && entry.fileDocId === fileDocId) return true
     }
     return false
   }
@@ -664,7 +664,7 @@ export class AutomergeFs {
   }
 
   /**
-   * Create a hard link. Both paths share the same underlying fileDocId/blobHash,
+   * Create a hard link. Both paths share the same underlying fileDocId,
    * so writes through either path are visible through both, and removing one
    * does not affect the other.
    */
@@ -703,7 +703,6 @@ export class AutomergeFs {
       },
     }
     if (result.entry.fileDocId) newEntry.fileDocId = result.entry.fileDocId
-    if (result.entry.blobHash) newEntry.blobHash = result.entry.blobHash
 
     this.setEntry(normalized, newEntry)
   }
@@ -761,7 +760,7 @@ export class AutomergeFs {
     if (!doc) return ""
     try {
       const viewed = Automerge.view(doc, heads as Automerge.Heads)
-      return (viewed as unknown as FileDoc).content ?? ""
+      return (viewed as unknown as TextFileDoc).content ?? ""
     } catch {
       return ""
     }
@@ -803,12 +802,12 @@ export class AutomergeFs {
   // ===========================================================================
 
   /**
-   * Get the underlying Automerge DocHandle for a text file.
+   * Get the underlying Automerge DocHandle for a file.
    * Useful for integrating with editors like ProseMirror that need
    * direct access to the CRDT document.
-   * Throws if the path doesn't exist, isn't a file, or is a binary blob.
+   * Throws if the path doesn't exist or isn't a file.
    */
-  async getFileDocHandle(path: string): Promise<DocHandle<FileDoc>> {
+  async getFileDocHandle(path: string): Promise<DocHandle<TextFileDoc>> {
     const result = this.resolveEntry(path)
     if (!result) {
       throw new Error(`ENOENT: no such file or directory: ${path}`)
@@ -818,19 +817,8 @@ export class AutomergeFs {
       throw new Error(`EISDIR: illegal operation on a directory: ${path}`)
     }
     if (!entry.fileDocId) {
-      throw new Error(`No document handle for binary file: ${path}`)
+      throw new Error(`No document handle for file: ${path}`)
     }
-    return this.getOrLoadFileHandle(entry.fileDocId)
-  }
-
-  // ===========================================================================
-  // Helpers
-  // ===========================================================================
-
-  private async createBlobHash(data: Uint8Array): Promise<string> {
-    const digest = await crypto.subtle.digest("SHA-256", data as Uint8Array<ArrayBuffer>)
-    return [...new Uint8Array(digest)]
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
+    return this.getOrLoadFileHandle<TextFileDoc>(entry.fileDocId)
   }
 }

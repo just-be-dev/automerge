@@ -18,7 +18,7 @@ interface TreeNode {
 }
 
 function buildTree(fs: AutomergeFs): TreeNode[] {
-  const allPaths = fs.getAllPaths().filter((p) => p !== "/")
+  const allPaths = fs.getAllPaths().filter((p: string) => p !== "/")
   const nodes: Map<string, TreeNode> = new Map()
   const roots: TreeNode[] = []
 

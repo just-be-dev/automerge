@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test"
-import { Repo } from "@automerge/automerge-repo"
+import { Repo, type DocHandle } from "@automerge/automerge-repo"
 import { AutomergeFs } from "./fs"
 import { InMemoryBlobStore } from "./blob-store"
+import type { FileHandler } from "./file-handlers"
 
 function makeFs() {
   return AutomergeFs.create({
@@ -124,7 +125,7 @@ describe("AutomergeFs direct API", () => {
     expect(content).toBe("second")
   })
 
-  it("binary files are stored in blob store", async () => {
+  it("binary files are stored via blob file handler", async () => {
     const fs = makeFs()
     const binary = new Uint8Array([0x00, 0x01, 0xff, 0xfe, 0x80])
     await fs.writeFile("/bin.dat", binary)
@@ -262,5 +263,170 @@ describe("AutomergeFs direct API", () => {
     const link = entries.find((e) => e.name === "link.txt")
     expect(link?.isSymbolicLink).toBe(true)
     expect(link?.isFile).toBe(false)
+  })
+})
+
+describe("file handler system", () => {
+  it("text files are backed by automerge docs", async () => {
+    const fs = makeFs()
+    await fs.writeFile("/hello.txt", "world")
+    const handle = await fs.getFileDocHandle("/hello.txt")
+    expect(handle.doc()?.content).toBe("world")
+  })
+
+  it("binary files are backed by automerge docs with blobRef", async () => {
+    const fs = makeFs()
+    const binary = new Uint8Array([0x00, 0x01, 0xff, 0xfe, 0x80])
+    await fs.writeFile("/bin.dat", binary)
+    const handle = await fs.getFileDocHandle("/bin.dat")
+    expect(handle.doc()).toBeTruthy()
+    const read = await fs.readFile("/bin.dat")
+    expect(read).toEqual(binary)
+  })
+
+  it("overwriting a text file reuses the same doc", async () => {
+    const fs = makeFs()
+    await fs.writeFile("/f.txt", "first")
+    const h1 = await fs.getFileDocHandle("/f.txt")
+    await fs.writeFile("/f.txt", "second")
+    const h2 = await fs.getFileDocHandle("/f.txt")
+    expect(h1.url).toBe(h2.url)
+    expect(h2.doc()?.content).toBe("second")
+  })
+
+  it("custom file handler matched by extension", async () => {
+    interface JsonFileDoc { json: string }
+
+    const jsonFileHandler: FileHandler<JsonFileDoc> = {
+      name: "json",
+      extensions: [".json"],
+
+      async createDoc(repo, content) {
+        const handle = repo.create<JsonFileDoc>()
+        handle.change((doc) => {
+          doc.json = new TextDecoder().decode(content)
+        })
+        return handle
+      },
+
+      async write(handle, content) {
+        const text = new TextDecoder().decode(content)
+        handle.change((doc) => {
+          doc.json = text
+        })
+      },
+
+      async read(handle) {
+        const doc = handle.doc()
+        return new TextEncoder().encode(doc?.json ?? "")
+      },
+    }
+
+    const fs = AutomergeFs.create({
+      repo: new Repo({ network: [] }),
+      fileHandlers: [jsonFileHandler],
+    })
+
+    await fs.writeFile("/config.json", '{"key": "value"}')
+    const content = new TextDecoder().decode(await fs.readFile("/config.json"))
+    expect(content).toBe('{"key": "value"}')
+
+    // Verify the custom doc shape
+    const handle = await fs.getFileDocHandle("/config.json")
+    const doc = handle.doc() as unknown as JsonFileDoc
+    expect(doc.json).toBe('{"key": "value"}')
+  })
+
+  it("custom file handler matched by predicate", async () => {
+    interface UpperFileDoc { upper: string }
+
+    const upperFileHandler: FileHandler<UpperFileDoc> = {
+      name: "upper",
+      extensions: [],
+
+      match(path: string) {
+        return path.startsWith("/upper/")
+      },
+
+      async createDoc(repo, content) {
+        const handle = repo.create<UpperFileDoc>()
+        handle.change((doc) => {
+          doc.upper = new TextDecoder().decode(content).toUpperCase()
+        })
+        return handle
+      },
+
+      async write(handle, content) {
+        handle.change((doc) => {
+          doc.upper = new TextDecoder().decode(content).toUpperCase()
+        })
+      },
+
+      async read(handle) {
+        return new TextEncoder().encode(handle.doc()?.upper ?? "")
+      },
+    }
+
+    const fs = AutomergeFs.create({
+      repo: new Repo({ network: [] }),
+      fileHandlers: [upperFileHandler],
+    })
+
+    fs.mkdir("/upper")
+    await fs.writeFile("/upper/hello.txt", "world")
+    const content = new TextDecoder().decode(await fs.readFile("/upper/hello.txt"))
+    expect(content).toBe("WORLD")
+
+    // A file outside /upper/ uses the default text handler
+    await fs.writeFile("/normal.txt", "world")
+    const normal = new TextDecoder().decode(await fs.readFile("/normal.txt"))
+    expect(normal).toBe("world")
+  })
+
+  it("fileHandlerRegistry exposes registered handlers", () => {
+    const fs = makeFs()
+    const registry = fs.fileHandlerRegistry
+    expect(registry.get("text")).toBeTruthy()
+    expect(registry.get("blob")).toBeTruthy()
+  })
+
+  it("register file handler after creation", async () => {
+    const fs = makeFs()
+
+    interface CsvFileDoc { csv: string }
+
+    fs.fileHandlerRegistry.register({
+      name: "csv",
+      extensions: [".csv"],
+      async createDoc(repo, content) {
+        const handle = repo.create<CsvFileDoc>()
+        handle.change((doc) => {
+          doc.csv = new TextDecoder().decode(content)
+        })
+        return handle
+      },
+      async write(handle: DocHandle<CsvFileDoc>, content) {
+        handle.change((doc) => {
+          doc.csv = new TextDecoder().decode(content)
+        })
+      },
+      async read(handle: DocHandle<CsvFileDoc>) {
+        return new TextEncoder().encode(handle.doc()?.csv ?? "")
+      },
+    })
+
+    await fs.writeFile("/data.csv", "a,b,c")
+    const content = new TextDecoder().decode(await fs.readFile("/data.csv"))
+    expect(content).toBe("a,b,c")
+  })
+
+  it("fs works without blob file handler (text only)", async () => {
+    const fs = AutomergeFs.create({
+      repo: new Repo({ network: [] }),
+    })
+
+    await fs.writeFile("/hello.txt", "world")
+    const content = new TextDecoder().decode(await fs.readFile("/hello.txt"))
+    expect(content).toBe("world")
   })
 })
