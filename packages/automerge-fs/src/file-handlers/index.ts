@@ -10,7 +10,6 @@
  */
 
 import type { Repo, DocHandle } from "@automerge/automerge-repo"
-import { rawHandler } from "./raw"
 
 // =============================================================================
 // FileHandler Interface
@@ -75,7 +74,7 @@ export class FileHandlerRegistry {
    * 2. Otherwise all handlers are candidates.
    * 3. Among candidates (last registered first), the first whose `match(path, doc)`
    *    returns true (or has no `match`) is returned.
-   * 4. Falls back to the built-in raw JSON handler if nothing matches.
+   * 4. Throws if nothing matches.
    */
   resolveForRead(path: string, doc: unknown): FileHandler {
     const ext = extname(path)
@@ -88,7 +87,7 @@ export class FileHandlerRegistry {
       if (!fh.match || fh.match(path, doc)) return fh
     }
 
-    return rawHandler
+    throw new Error(`No file handler matched for reading "${path}"`)
   }
 
   /**
@@ -121,7 +120,9 @@ export class FileHandlerRegistry {
     const handler = this.handlers.find((h) => h.name === handlerName)
     if (handler) return handler
 
-    return this.handlers[0] ?? rawHandler
+    const fallback = this.handlers[0]
+    if (!fallback) throw new Error(`No file handler registered for writing "${path}"`)
+    return fallback
   }
 
   /** Look up a file handler by name. */
@@ -136,7 +137,6 @@ export class FileHandlerRegistry {
 
 export { textFileHandler, type TextFileDoc } from "./text"
 export { createBlobFileHandler, type BlobFileDoc } from "./blob"
-export { rawHandler as rawJsonFallbackHandler } from "./raw"
 
 // =============================================================================
 // Helpers

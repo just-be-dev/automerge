@@ -6,5 +6,4 @@ export {
   textFileHandler,
   type TextFileDoc,
   type BlobFileDoc,
-  rawJsonFallbackHandler,
 } from "./file-handlers"
