@@ -1,6 +1,11 @@
-import React, { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import type { AutomergeFs } from "@just-be/automerge-fs"
 import { normalizePath } from "@just-be/automerge-fs"
+import {
+  FileTree,
+  useFileTree,
+  useFileTreeSelection,
+} from "@pierre/trees/react"
 
 interface Props {
   fs: AutomergeFs
@@ -10,138 +15,56 @@ interface Props {
   onRefresh: () => void
 }
 
-interface TreeNode {
-  name: string
-  path: string
-  isDirectory: boolean
-  children: TreeNode[]
-}
-
-function buildTree(fs: AutomergeFs): TreeNode[] {
-  const allPaths = fs.getAllPaths().filter((p: string) => p !== "/")
-  const nodes: Map<string, TreeNode> = new Map()
-  const roots: TreeNode[] = []
-
-  // Sort so parents come before children
-  allPaths.sort()
-
-  for (const p of allPaths) {
-    const stat = fs.stat(p)
-    const parts = p.split("/").filter(Boolean)
-    const name = parts[parts.length - 1]!
-    const node: TreeNode = {
-      name,
-      path: p,
-      isDirectory: stat.isDirectory,
-      children: [],
-    }
-    nodes.set(p, node)
-
-    const parentPath = "/" + parts.slice(0, -1).join("/")
-    const normalizedParent = parentPath === "/" ? "/" : parentPath
-    const parent = nodes.get(normalizedParent)
-    if (parent) {
-      parent.children.push(node)
-    } else {
-      roots.push(node)
-    }
-  }
-
-  // Sort: directories first, then alphabetical
-  const sortNodes = (nodes: TreeNode[]) => {
-    nodes.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-      return a.name.localeCompare(b.name)
+function toPierrePaths(fs: AutomergeFs): string[] {
+  return fs
+    .getAllPaths()
+    .filter((p: string) => p !== "/")
+    .map((p: string) => {
+      const stripped = p.replace(/^\//, "")
+      return fs.stat(p).isDirectory ? stripped + "/" : stripped
     })
-    for (const n of nodes) sortNodes(n.children)
-  }
-  sortNodes(roots)
-  return roots
 }
 
-function TreeItem({
-  node,
-  depth,
+const toFsPath = (pierrePath: string) =>
+  "/" + pierrePath.replace(/\/$/, "")
+
+const toPierrePath = (fsPath: string) => fsPath.replace(/^\//, "")
+
+export function FileExplorer({
+  fs,
   selectedFile,
   onSelectFile,
-  expanded,
-  onToggle,
-}: {
-  node: TreeNode
-  depth: number
-  selectedFile: string | null
-  onSelectFile: (path: string) => void
-  expanded: Set<string>
-  onToggle: (path: string) => void
-}) {
-  const isOpen = expanded.has(node.path)
+  refreshKey,
+  onRefresh,
+}: Props) {
+  const initialPaths = useMemo(() => toPierrePaths(fs), [])
 
-  return (
-    <>
-      <div
-        className={`tree-item ${node.isDirectory ? "directory" : ""} ${selectedFile === node.path ? "selected" : ""}`}
-        style={{ paddingLeft: 16 + depth * 16 }}
-        onClick={() => {
-          if (node.isDirectory) {
-            onToggle(node.path)
-          } else {
-            onSelectFile(node.path)
-          }
-        }}
-      >
-        <span className="icon">
-          {node.isDirectory ? (isOpen ? "\u25BE" : "\u25B8") : "\u25A1"}
-        </span>
-        {node.name}
-      </div>
-      {node.isDirectory &&
-        isOpen &&
-        node.children.map((child) => (
-          <TreeItem
-            key={child.path}
-            node={child}
-            depth={depth + 1}
-            selectedFile={selectedFile}
-            onSelectFile={onSelectFile}
-            expanded={expanded}
-            onToggle={onToggle}
-          />
-        ))}
-    </>
-  )
-}
-
-export function FileExplorer({ fs, selectedFile, onSelectFile, refreshKey, onRefresh }: Props) {
-  const tree = useMemo(() => buildTree(fs), [fs, refreshKey])
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    // Expand all directories by default
-    const dirs = new Set<string>()
-    const walk = (nodes: TreeNode[]) => {
-      for (const n of nodes) {
-        if (n.isDirectory) {
-          dirs.add(n.path)
-          walk(n.children)
-        }
-      }
-    }
-    walk(tree)
-    return dirs
+  const { model } = useFileTree({
+    paths: initialPaths,
+    initialExpansion: "open",
+    initialSelectedPaths: selectedFile ? [toPierrePath(selectedFile)] : [],
   })
 
-  const toggle = (path: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
-  }
+  const selection = useFileTreeSelection(model)
+  const lastReportedPathRef = useRef<string | null>(selectedFile)
+
+  useEffect(() => {
+    const last = selection[selection.length - 1]
+    if (!last || last.endsWith("/")) return
+    const fsPath = toFsPath(last)
+    if (fsPath === lastReportedPathRef.current) return
+    lastReportedPathRef.current = fsPath
+    onSelectFile(fsPath)
+  }, [selection, onSelectFile])
+
+  useEffect(() => {
+    model.resetPaths(toPierrePaths(fs))
+  }, [model, refreshKey, fs])
 
   const handleNewFile = async () => {
     const name = prompt("File name (e.g. notes/new.txt):")
     if (!name) return
     const path = normalizePath(name.startsWith("/") ? name : "/" + name)
-    // Create parent dirs if needed
     const parts = path.split("/").filter(Boolean)
     if (parts.length > 1) {
       const dir = "/" + parts.slice(0, -1).join("/")
@@ -154,19 +77,7 @@ export function FileExplorer({ fs, selectedFile, onSelectFile, refreshKey, onRef
 
   return (
     <>
-      <div className="file-tree">
-        {tree.map((node) => (
-          <TreeItem
-            key={node.path}
-            node={node}
-            depth={0}
-            selectedFile={selectedFile}
-            onSelectFile={onSelectFile}
-            expanded={expanded}
-            onToggle={toggle}
-          />
-        ))}
-      </div>
+      <FileTree model={model} className="file-tree" />
       <div className="tree-actions">
         <button onClick={handleNewFile}>+ New File</button>
       </div>
