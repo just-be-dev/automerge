@@ -1,14 +1,17 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
-import { Repo } from "@automerge/automerge-repo"
-import { IndexedDBStorageAdapter } from "@automerge/automerge-repo-storage-indexeddb"
+import {
+  Repo,
+  IndexedDBStorageAdapter,
+  BroadcastChannelNetworkAdapter,
+} from "@automerge/react"
 import { App } from "./App"
 import { AutomergeFs, InMemoryBlobStore } from "@just-be/automerge-fs"
 
 const STORAGE_KEY = "automerge-fs-root-doc-url"
 
 const repo = new Repo({
-  network: [],
+  network: [new BroadcastChannelNetworkAdapter()],
   storage: new IndexedDBStorageAdapter("automerge-fs"),
 })
 
