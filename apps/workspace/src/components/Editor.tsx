@@ -1,12 +1,34 @@
 import React, { useEffect, useRef, useState } from "react"
 import type { AutomergeFs, TextFileDoc } from "@just-be/automerge-fs"
-import { EditorState } from "prosemirror-state"
-import { EditorView } from "prosemirror-view"
-import { exampleSetup } from "prosemirror-example-setup"
-import { init } from "@automerge/prosemirror"
-import "prosemirror-example-setup/style/style.css"
-import "prosemirror-menu/style/menu.css"
-import "prosemirror-view/style/prosemirror.css"
+import { EditorState } from "@codemirror/state"
+import {
+  EditorView,
+  highlightSpecialChars,
+  drawSelection,
+  dropCursor,
+  rectangularSelection,
+  crosshairCursor,
+  highlightActiveLine,
+  keymap,
+} from "@codemirror/view"
+import {
+  defaultHighlightStyle,
+  syntaxHighlighting,
+  indentOnInput,
+  bracketMatching,
+  foldGutter,
+  foldKeymap,
+} from "@codemirror/language"
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands"
+import { searchKeymap, highlightSelectionMatches } from "@codemirror/search"
+import {
+  autocompletion,
+  completionKeymap,
+  closeBrackets,
+  closeBracketsKeymap,
+} from "@codemirror/autocomplete"
+import { lintKeymap } from "@codemirror/lint"
+import { automergeSyncPlugin } from "@automerge/automerge-codemirror"
 
 interface Props {
   fs: AutomergeFs
@@ -24,21 +46,48 @@ export function Editor({ fs, path }: Props) {
 
     async function setup() {
       try {
-        const handle = await fs.getFileDocHandle(path)
+        const handle = await fs.getFileDocHandle<TextFileDoc>(path)
         await handle.whenReady()
 
-        if (cancelled) return
+        if (cancelled || !editorRoot.current) return
 
-        const { pmDoc: doc, schema, plugin } = init(handle, ["content"])
-        const plugins = exampleSetup({ schema })
-        plugins.push(plugin)
+        const initial = handle.doc()?.content ?? ""
 
-        if (editorRoot.current) {
-          const view = new EditorView(editorRoot.current, {
-            state: EditorState.create({ schema, plugins, doc }),
-          })
-          viewRef.current = view
-        }
+        const view = new EditorView({
+          parent: editorRoot.current,
+          state: EditorState.create({
+            doc: initial,
+            extensions: [
+              highlightSpecialChars(),
+              history(),
+              foldGutter(),
+              drawSelection(),
+              dropCursor(),
+              EditorState.allowMultipleSelections.of(true),
+              indentOnInput(),
+              syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+              bracketMatching(),
+              closeBrackets(),
+              autocompletion(),
+              rectangularSelection(),
+              crosshairCursor(),
+              highlightActiveLine(),
+              highlightSelectionMatches(),
+              keymap.of([
+                ...closeBracketsKeymap,
+                ...defaultKeymap,
+                ...searchKeymap,
+                ...historyKeymap,
+                ...foldKeymap,
+                ...completionKeymap,
+                ...lintKeymap,
+              ]),
+              EditorView.lineWrapping,
+              automergeSyncPlugin({ handle, path: ["content"] }),
+            ],
+          }),
+        })
+        viewRef.current = view
 
         setLoading(false)
       } catch (e) {

@@ -114,41 +114,53 @@ body {
   padding: 20px;
 }
 
-.editor-content .ProseMirror {
+.editor-content .cm-editor {
   min-height: 300px;
-  padding: 16px 20px;
+  height: 100%;
   background: #181825;
   border-radius: 8px;
   border: 1px solid #313244;
-  outline: none;
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 14px;
   color: #cdd6f4;
 }
 
-.editor-content .ProseMirror:focus {
+.editor-content .cm-editor.cm-focused {
+  outline: none;
   border-color: #cba6f7;
 }
 
-.editor-content .ProseMirror p {
-  margin-bottom: 0.5em;
+.editor-content .cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.6;
 }
 
-/* ProseMirror menu bar overrides */
-.ProseMirror-menubar {
-  background: #181825;
-  border-bottom: 1px solid #313244;
-  padding: 4px 8px;
-  border-radius: 8px 8px 0 0;
+.editor-content .cm-content {
+  padding: 12px 0;
+  caret-color: #cba6f7;
 }
 
-.ProseMirror-menubar .ProseMirror-menu-active {
-  background: #45475a;
+.editor-content .cm-gutters {
+  background: #11111b;
+  color: #585b70;
+  border-right: 1px solid #313244;
 }
 
-.ProseMirror-menubar-wrapper {
-  border: 1px solid #313244;
-  border-radius: 8px;
+.editor-content .cm-activeLine {
+  background: #1e1e2e;
+}
+
+.editor-content .cm-activeLineGutter {
+  background: #1e1e2e;
+  color: #cba6f7;
+}
+
+.editor-content .cm-selectionBackground,
+.editor-content .cm-content ::selection {
+  background: #45475a !important;
+}
+
+.editor-content .cm-cursor {
+  border-left-color: #cba6f7;
 }
 
 .editor-loading {
