@@ -11,6 +11,7 @@ Designed around a **one-Durable-Object-per-document** architecture with full hib
 | `@just-be/automerge-cloudflare/storage/do` | Durable Object transactional storage adapter |
 | `@just-be/automerge-cloudflare/storage/r2` | R2 object storage adapter |
 | `@just-be/automerge-cloudflare/storage/d1` | D1 SQLite database adapter |
+| `@just-be/automerge-cloudflare/storage/tiered` | Hot/cold tiered adapter (e.g. DO + R2) |
 | `@just-be/automerge-cloudflare/network` | WebSocket network adapter + Worker routing helper |
 
 ## Quick start
@@ -149,6 +150,42 @@ const storage = new D1StorageAdapter(env.DB)
 ```
 
 The table `automerge_storage` is created automatically on first use.
+
+### Tiered storage
+
+Pairs a fast "hot" adapter with a cheaper "cold" adapter. Live Repo writes hit only the hot tier so per-change syncs stay low-latency; an explicit `flushToCold([docId])` call (typically from a DO `alarm()`) promotes chunks to durable, externally-readable storage. Reads fall through hot → cold; removals propagate to both. This is the recommended pattern for long-lived documents that would otherwise grow against the 10 GB DO storage cap.
+
+```ts
+import { Repo } from "@automerge/automerge-repo"
+import { DOStorageAdapter } from "@just-be/automerge-cloudflare/storage/do"
+import { R2StorageAdapter } from "@just-be/automerge-cloudflare/storage/r2"
+import { TieredStorageAdapter } from "@just-be/automerge-cloudflare/storage/tiered"
+
+export class AutomergeDO extends DurableObject<Env> {
+  #hot = new DOStorageAdapter(this.ctx.storage)
+  #cold = new R2StorageAdapter(this.env.BUCKET)
+  #storage = new TieredStorageAdapter(this.#hot, this.#cold)
+  #activeDocs = new Set<string>()
+
+  #repo = new Repo({
+    storage: this.#storage,
+    // ...network, peerId, etc.
+  })
+
+  async alarm() {
+    for (const docId of this.#activeDocs) {
+      await this.#storage.flushToCold([docId])
+    }
+    await this.ctx.storage.setAlarm(Date.now() + 60_000)
+  }
+}
+```
+
+Notes:
+- Writes go only to hot — cold is updated solely by `flushToCold`.
+- Deletes propagate to both tiers so the read fallback can't resurrect them.
+- Tracking which doc IDs need flushing is the user's responsibility (e.g. a `Set` in DO state or an index in D1).
+- To free hot capacity after a flush, call `hotAdapter.removeRange([docId])` directly on the underlying adapter.
 
 ## Hibernation
 
