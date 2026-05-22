@@ -1,0 +1,38 @@
+packages/automerge-cloudflare/src/storage/tiered/index.ts
+  s_0b12dfbe5a7b26::t_e7280ccd2495e3 183-188
+  s_0b12dfbe5a7b26::t_09841640ddf75b 63-66
+  s_0b12dfbe5a7b26::t_806bfde7348933 44-46
+  s_0b12dfbe5a7b26::t_b2bac27acaa33b 117-137,155-174
+  s_0b12dfbe5a7b26::t_ac4a7b42556f58 35-43
+  s_0b12dfbe5a7b26::t_35564540239297 5-21
+  s_0b12dfbe5a7b26::t_3201442ad82937 22-26
+  s_0b12dfbe5a7b26::t_96ccd763c082e6 138-154
+packages/automerge-cloudflare/src/storage/tiered/index.test.ts
+  s_0b12dfbe5a7b26::t_507ba656a63ebd 266-296
+  s_e6f7ca7f687fda::t_35c11e389540de 2-44
+  s_0b12dfbe5a7b26::t_68b2d6ea483a80 191-265,297-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "32da20e57140eb3b9bd4753798c0b6f094f431ad",
+  "prompts": {},
+  "sessions": {
+    "s_0b12dfbe5a7b26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f3c70d7-2f46-48ce-9f46-25c0ea6f301e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    },
+    "s_e6f7ca7f687fda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30320afd-ea39-43a0-9f2d-9c6b08251a32",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
