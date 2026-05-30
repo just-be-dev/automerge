@@ -1,0 +1,38 @@
+apps/workspace/package.json
+  s_0b12dfbe5a7b26::t_8236ff08ad62f7 14
+packages/automerge-cloudflare/src/network/index.ts
+  s_0b12dfbe5a7b26::t_bdfe6c4f9e4bfe 66
+tsconfig.json
+  s_0b12dfbe5a7b26::t_780ed78c01ffc0 7-8
+packages/automerge-cloudflare/package.json
+  s_0b12dfbe5a7b26::t_44a6c48f4f53a7 7
+mise.toml
+  s_0b12dfbe5a7b26::t_cc9d9eafda3734 28-34
+  s_c1e89e5ee2d868::t_6f481db057b0d2 24,26
+CLAUDE.md
+  s_0b12dfbe5a7b26::t_5bdea642014d4d 12-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b8cee4f92fcc0b62acdb95d7c22d784cf60fbb0d",
+  "prompts": {},
+  "sessions": {
+    "s_0b12dfbe5a7b26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f3c70d7-2f46-48ce-9f46-25c0ea6f301e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    },
+    "s_c1e89e5ee2d868": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3dac1f3-8683-4e78-96b3-3d27de92276e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
