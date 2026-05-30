@@ -1,6 +1,6 @@
 # @just-be/automerge-cloudflare
 
-[Automerge](https://automerge.org/) storage and network adapters for [Cloudflare Workers](https://developers.cloudflare.com/workers/).
+[Automerge](https://automerge.org/) storage and network primitives for [Cloudflare Workers](https://developers.cloudflare.com/workers/).
 
 Designed around a **one-Durable-Object-per-document** architecture with full hibernation support — clients stay connected while idle DOs sleep, with no billing for inactive time.
 
@@ -8,30 +8,59 @@ Designed around a **one-Durable-Object-per-document** architecture with full hib
 
 | Subpath | Description |
 |---|---|
-| `@just-be/automerge-cloudflare/storage/do` | Durable Object transactional storage adapter |
-| `@just-be/automerge-cloudflare/storage/r2` | R2 object storage adapter |
-| `@just-be/automerge-cloudflare/storage/d1` | D1 SQLite database adapter |
-| `@just-be/automerge-cloudflare/storage/tiered` | Hot/cold tiered adapter (e.g. DO + R2) |
+| `@just-be/automerge-cloudflare/storage` | Two-tier Durable Object storage (top-level router + per-document store) with a client-side `StorageAdapterInterface` |
 | `@just-be/automerge-cloudflare/network` | WebSocket network adapter + Worker routing helper |
+
+## Architecture
+
+Storage is split across **two** Durable Object classes plus a small client-side library:
+
+- **`RepoStoreDO`** — top-level router. Implements automerge-repo's storage RPC surface; reads the documentId from each `StorageKey` (always `key[0]` per the [automerge-repo contract](https://github.com/automerge/automerge-repo/blob/main/packages/automerge-repo/src/storage/types.ts)) and forwards every call to that document's `DocStoreDO`. Stateless — no chunk data lives here.
+- **`DocStoreDO`** — per-document store. One instance per documentId, named via `idFromName(docId)`. Owns the chunks for that doc. The *store* tier is the DO's own SQLite storage; the *archive* tier is an optional R2 bucket bound via env. Writes go to the store only; reads fall through store → archive; removals propagate to both; tiering lifecycle (`hydrate`, `flushToArchive`, `clearAll`) is exposed for use from an alarm or external coordinator.
+- **`RepoStoreAdapter`** — the library wrapper. Implements automerge-repo's `StorageAdapterInterface` by delegating each call to a `RepoStoreDO` stub over DO RPC. This is what you hand to `new Repo({ storage })`.
+
+Why two DO layers? The router gives the repo a single addressable stub (one binding for the consumer), while per-doc DOs keep each document's storage in its own DO — letting writes/reads stay strongly consistent with that document's writers and allowing per-document lifecycle without cross-doc coordination.
 
 ## Quick start
 
-### 1. Define your Durable Object
+### 1. Define your application Durable Object
 
 ```ts
 // src/do.ts
+import { DurableObject } from "cloudflare:workers"
 import { Repo } from "@automerge/automerge-repo"
-import { DOStorageAdapter } from "@just-be/automerge-cloudflare/storage/do"
+import {
+  RepoStoreAdapter,
+  RepoStoreDO,
+  DocStoreDO,
+} from "@just-be/automerge-cloudflare/storage"
 import { DONetworkAdapter } from "@just-be/automerge-cloudflare/network"
 
-export class AutomergeDO extends DurableObject {
+// Re-export the storage DOs so wrangler can bind them.
+export { RepoStoreDO, DocStoreDO }
+
+interface Env {
+  AUTOMERGE_REPO_STORE: DurableObjectNamespace<RepoStoreDO>
+  AUTOMERGE_DOC_STORE: DurableObjectNamespace<DocStoreDO>
+  AUTOMERGE_R2?: R2Bucket
+}
+
+export class AutomergeDO extends DurableObject<Env> {
   #network = new DONetworkAdapter(this.ctx)
-  #repo = new Repo({
-    network: [this.#network],
-    storage: new DOStorageAdapter(this.ctx.storage),
-    peerId: `do-${this.ctx.id.toString()}` as any,
-    isEphemeral: false,
-  })
+  #repo: Repo
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env)
+    const stub = env.AUTOMERGE_REPO_STORE.get(
+      env.AUTOMERGE_REPO_STORE.idFromName("default")
+    )
+    this.#repo = new Repo({
+      network: [this.#network],
+      storage: new RepoStoreAdapter(stub),
+      peerId: `do-${this.ctx.id.toString()}` as any,
+      isEphemeral: false,
+    })
+  }
 
   async fetch(request: Request): Promise<Response> {
     const { 0: client, 1: server } = new WebSocketPair()
@@ -64,6 +93,7 @@ interface Env {
 }
 
 export { AutomergeDO } from "./do"
+export { RepoStoreDO, DocStoreDO } from "./do"
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -72,7 +102,7 @@ export default {
 }
 ```
 
-By default, `routeWebSocket` uses the last URL path segment as the document ID (e.g. `/doc/abc123` routes to the DO named `abc123`). Pass a custom `getDocumentId` function to change this:
+`routeWebSocket` uses the last URL path segment as the document ID (e.g. `/doc/abc123` routes to the DO named `abc123`). Pass a custom `getDocumentId` function to change this:
 
 ```ts
 routeWebSocket({
@@ -94,9 +124,22 @@ compatibility_date = "2024-01-01"
 name = "AUTOMERGE_DO"
 class_name = "AutomergeDO"
 
+[[durable_objects.bindings]]
+name = "AUTOMERGE_REPO_STORE"
+class_name = "RepoStoreDO"
+
+[[durable_objects.bindings]]
+name = "AUTOMERGE_DOC_STORE"
+class_name = "DocStoreDO"
+
+# Optional cold tier for the per-doc DOs.
+[[r2_buckets]]
+binding = "AUTOMERGE_R2"
+bucket_name = "automerge-cold"
+
 [[migrations]]
 tag = "v1"
-new_classes = ["AutomergeDO"]
+new_sqlite_classes = ["AutomergeDO", "RepoStoreDO", "DocStoreDO"]
 ```
 
 ### 4. Connect from a client
@@ -112,80 +155,36 @@ const repo = new Repo({
 })
 ```
 
-## Storage adapters
+## Archive tier (R2)
 
-All three storage adapters implement automerge-repo's `StorageAdapterInterface`. They use the same key layout (the first two characters of the document ID are used as a shard prefix), so data written by one adapter can be read by another.
+Bind `AUTOMERGE_R2` in the env of `DocStoreDO` to enable an archive tier. When present:
 
-### Durable Object storage
+- **Writes** go to the store (DO SQLite) only.
+- **Reads** check the store first, then fall through to the archive. Archive hits are **promoted into the store** so subsequent reads stay hot (lazy hydration).
+- **Removes** propagate to both tiers so the read fallback can't resurrect deleted keys.
 
-Best for the one-DO-per-document pattern. Strongly consistent, co-located with the DO, no extra bindings needed.
+### Idle-flush alarm
 
-```ts
-import { DOStorageAdapter } from "@just-be/automerge-cloudflare/storage/do"
+When an archive is bound, `DocStoreDO` runs a per-doc alarm that flushes the whole store to the archive once the doc has been idle (no writes) for `AUTOMERGE_IDLE_FLUSH_MS` (default **7 days**). After a flush the chunks live only in R2; if the doc wakes up again, reads pull them back into the store on demand.
 
-const storage = new DOStorageAdapter(ctx.storage)
+Configure via `[vars]` in `wrangler.toml`:
+
+```toml
+[vars]
+AUTOMERGE_IDLE_FLUSH_MS = "604800000"  # 7 days (default)
 ```
 
-### R2
+Lifecycle methods on `DocStoreDO` (callable over DO RPC):
 
-Best for bulk/archival storage, large documents, or when you need data accessible outside Workers.
+| Method | Description |
+|---|---|
+| `hydrate(prefix)` | Copy chunks under `prefix` from archive → store. Idempotent. |
+| `flushToArchive(prefix)` | Move chunks under `prefix` from store → archive (copy then evict). Idempotent. |
+| `clearAll()` | Wipe the whole store tier (uses SQL `DELETE FROM ...`). Archive preserved. |
 
-```ts
-import { R2StorageAdapter } from "@just-be/automerge-cloudflare/storage/r2"
+To drop chunks without archiving them, call `removeRange(prefix)` — that's the normal `StorageAdapterInterface` op and it propagates to both tiers.
 
-const storage = new R2StorageAdapter(env.BUCKET)
-
-// Optional: namespace keys under a prefix
-const storage = new R2StorageAdapter(env.BUCKET, { prefix: "automerge/" })
-```
-
-### D1
-
-Best when you want to query document metadata alongside automerge data using SQL.
-
-```ts
-import { D1StorageAdapter } from "@just-be/automerge-cloudflare/storage/d1"
-
-const storage = new D1StorageAdapter(env.DB)
-```
-
-The table `automerge_storage` is created automatically on first use.
-
-### Tiered storage
-
-Pairs a fast "hot" adapter with a cheaper "cold" adapter. Live Repo writes hit only the hot tier so per-change syncs stay low-latency; an explicit `flushToCold([docId])` call (typically from a DO `alarm()`) promotes chunks to durable, externally-readable storage. Reads fall through hot → cold; removals propagate to both. This is the recommended pattern for long-lived documents that would otherwise grow against the 10 GB DO storage cap.
-
-```ts
-import { Repo } from "@automerge/automerge-repo"
-import { DOStorageAdapter } from "@just-be/automerge-cloudflare/storage/do"
-import { R2StorageAdapter } from "@just-be/automerge-cloudflare/storage/r2"
-import { TieredStorageAdapter } from "@just-be/automerge-cloudflare/storage/tiered"
-
-export class AutomergeDO extends DurableObject<Env> {
-  #hot = new DOStorageAdapter(this.ctx.storage)
-  #cold = new R2StorageAdapter(this.env.BUCKET)
-  #storage = new TieredStorageAdapter(this.#hot, this.#cold)
-  #activeDocs = new Set<string>()
-
-  #repo = new Repo({
-    storage: this.#storage,
-    // ...network, peerId, etc.
-  })
-
-  async alarm() {
-    for (const docId of this.#activeDocs) {
-      await this.#storage.flushToCold([docId])
-    }
-    await this.ctx.storage.setAlarm(Date.now() + 60_000)
-  }
-}
-```
-
-Notes:
-- Writes go only to hot — cold is updated solely by `flushToCold`.
-- Deletes propagate to both tiers so the read fallback can't resurrect them.
-- Tracking which doc IDs need flushing is the user's responsibility (e.g. a `Set` in DO state or an index in D1).
-- To free hot capacity after a flush, call `hotAdapter.removeRange([docId])` directly on the underlying adapter.
+For most workloads the built-in idle-flush alarm is sufficient; the explicit `flushToArchive` / `hydrate` / `clearAll` RPCs are there for cases where you want to drive the lifecycle from outside the DO.
 
 ## Hibernation
 
