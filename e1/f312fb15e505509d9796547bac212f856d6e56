@@ -1,0 +1,58 @@
+packages/automerge-cloudflare/src/storage/index.test.ts
+  s_0b12dfbe5a7b26::t_f6fa232617c2b1 177-216
+  s_1926e7312dd27b::t_0a58b5cc71b515 8-78,220-499
+  s_0b12dfbe5a7b26::t_f71eb190d4213b 81-110,118-141,146,148,159-173
+  s_0b12dfbe5a7b26::t_b7fbfab5246251 112
+  s_0b12dfbe5a7b26::t_865bb34dbb9df8 144,147,149-154
+packages/automerge-cloudflare/src/storage/repo-store-do.ts
+  s_1926e7312dd27b::t_338ec9383972aa 4-29,32-43,45-47,49-58,63-104,108,110-111,119-122,128,130,132-133,135-136,139-143,145-146,149-152
+packages/automerge-cloudflare/src/storage/repo-store-core.ts
+  s_1926e7312dd27b::t_4c92b9bcb1965e 2-118
+packages/automerge-cloudflare/src/storage/doc-store-do.test.ts
+  s_0b12dfbe5a7b26::t_aaa6b2ac27aca0 1-10,12-43,45-83,85-92,95,98-105,107-110,112-125,128-137,140-152,155-169,172-196,199-206,208-214,216-218,220-228
+packages/automerge-cloudflare/src/storage/index.ts
+  s_1926e7312dd27b::t_b6e9ea912e004b 5-8
+packages/automerge-cloudflare/src/storage/doc-store-do.ts
+  s_0b12dfbe5a7b26::t_fefba679a85742 8-16,29-32,38-44,47-65,70,72-96,109-114,116-135,137-166
+  s_0b12dfbe5a7b26::t_322df8c5b4a82c 26-27,36,136,167-168,170,172-181,185-254,256,258-267,273,277,280-286,291,293-300,306,310-311,314-316,318,321,326
+  s_0b12dfbe5a7b26::t_e1908480a5f41d 5-7,34,66-68,71,103-104,169,171,255,257
+  s_0b12dfbe5a7b26::t_ba11c430bff9be 115
+packages/automerge-cloudflare/README.md
+  s_0b12dfbe5a7b26::t_e6e595cbd436d5 187
+  s_0b12dfbe5a7b26::t_6b5156a36d8e2b 22
+  s_0b12dfbe5a7b26::t_2aa48a4c811270 182,185
+  s_0b12dfbe5a7b26::t_271812d0dbe5c4 158,160,162,181,183
+  s_0b12dfbe5a7b26::t_ca0358b4f171c2 19
+  s_0b12dfbe5a7b26::t_709e44e585d9da 163,166,168,170,172-174
+  s_0b12dfbe5a7b26::t_19cf3422997f8d 3,11,14-18,20-21,23,26,30,32-36,39-48,50-63,96,105,127-139,142,164,177,179-180
+packages/automerge-cloudflare/src/storage/doc-store-core.ts
+  s_0b12dfbe5a7b26::t_88ba4ad326dc51 33
+  s_0b12dfbe5a7b26::t_fd85b0d30634d7 6-10,20,42-43,45-47,57,66,70-71,74,82-85,103-104,109,111-112,116-123,131-142
+  s_0b12dfbe5a7b26::t_1b8ecada06afa0 126-130
+  s_0b12dfbe5a7b26::t_fddd2b2e7b83e6 52-55,59-62,77-80,87-101
+  s_0b12dfbe5a7b26::t_60a501af2827a7 2-4,18-19,21-32,34-41,44,50,56,58,69,72-73,81,86,102,105-108,110,113-115,143-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e1f312fb15e505509d9796547bac212f856d6e56",
+  "prompts": {},
+  "sessions": {
+    "s_0b12dfbe5a7b26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f3c70d7-2f46-48ce-9f46-25c0ea6f301e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    },
+    "s_1926e7312dd27b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "96baba73-3f00-4c36-9545-da0cb82b8571",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
