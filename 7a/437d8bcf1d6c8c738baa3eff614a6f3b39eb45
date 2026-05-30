@@ -1,0 +1,32 @@
+apps/workspace/src/main.tsx
+  s_1926e7312dd27b::t_7893294938a196 15-22,25-26,32-40,45-56,62-79,84
+  s_0b12dfbe5a7b26::t_4445cecebaa691 4,8,11
+apps/workspace/vite.config.ts
+  s_1926e7312dd27b::t_46b2401aa157bd 16,19-25
+  s_1926e7312dd27b::t_fa034bb741cf95 27-30
+  s_0b12dfbe5a7b26::t_e3e9f3ca574fcd 13-15,17-18,26,31-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7a437d8bcf1d6c8c738baa3eff614a6f3b39eb45",
+  "prompts": {},
+  "sessions": {
+    "s_0b12dfbe5a7b26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f3c70d7-2f46-48ce-9f46-25c0ea6f301e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    },
+    "s_1926e7312dd27b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "96baba73-3f00-4c36-9545-da0cb82b8571",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
