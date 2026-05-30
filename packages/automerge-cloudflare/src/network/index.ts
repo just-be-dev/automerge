@@ -63,7 +63,7 @@ interface SocketAttachment {
  *   #adapter = new DONetworkAdapter(this.ctx)
  *   #repo = new Repo({
  *     network: [this.#adapter],
- *     storage: new DOStorageAdapter(this.ctx.storage),
+ *     storage: new RepoStoreAdapter(env.AUTOMERGE_REPO_STORE.get(...)),
  *   })
  *
  *   async fetch(request: Request): Promise<Response> {

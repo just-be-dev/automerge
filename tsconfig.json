@@ -4,6 +4,7 @@
     { "path": "packages/automerge-cloudflare" },
     { "path": "packages/automerge-fs" },
     { "path": "packages/secure-exec-amfs" },
-    { "path": "apps/workspace" }
+    { "path": "apps/workspace" },
+    { "path": "apps/worker" }
   ]
 }
