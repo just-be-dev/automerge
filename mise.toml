@@ -18,7 +18,7 @@ run = "bun test"
 run = "tsgo --build"
 
 [tasks.build]
-run = "bun build"
+run = "tsgo --build"
 
 [tasks.app]
 run = "bun run --cwd apps/$usage_app dev"
