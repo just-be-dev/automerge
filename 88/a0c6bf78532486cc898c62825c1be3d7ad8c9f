@@ -1,0 +1,27 @@
+scripts/publish-package.ts
+  s_1496faf05c85cb::t_a2af91d9f9483b 1-161
+.github/workflows/publish.yml
+  s_1496faf05c85cb::t_ca3533dac4c248 1-39
+scripts/publish-all.ts
+  s_1496faf05c85cb::t_539377777870f7 1-215
+.github/workflows/ci.yml
+  s_1496faf05c85cb::t_ca214cd6b344e9 1-21
+scripts/release-notes.ts
+  s_1496faf05c85cb::t_2a155e3f314ac5 1-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "88a0c6bf78532486cc898c62825c1be3d7ad8c9f",
+  "prompts": {},
+  "sessions": {
+    "s_1496faf05c85cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05df6285-e108-4782-a819-3a58d0c70330",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
