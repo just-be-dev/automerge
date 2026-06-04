@@ -1,9 +1,17 @@
-import "./polyfill.ts"
+import { AutomergeDO } from "@just-be/automerge-cloudflare"
 import { routeWebSocket } from "@just-be/automerge-cloudflare/network"
-import type { Env } from "./automerge-do.ts"
+import {
+  RepoStoreDO,
+  DocStoreDO,
+} from "@just-be/automerge-cloudflare/storage"
 
-export { AutomergeDO } from "./automerge-do.ts"
-export { RepoStoreDO, DocStoreDO } from "@just-be/automerge-cloudflare/storage"
+export { AutomergeDO, RepoStoreDO, DocStoreDO }
+
+interface Env {
+  AUTOMERGE_DO: DurableObjectNamespace<AutomergeDO>
+  AUTOMERGE_REPO_STORE: DurableObjectNamespace<RepoStoreDO>
+  AUTOMERGE_DOC_STORE: DurableObjectNamespace<DocStoreDO>
+}
 
 const DEFAULT_ROOT_KEY = ["default-root"]
 
@@ -49,14 +57,11 @@ async function handleDefaultRoot(
     if (!body || typeof body.url !== "string" || body.url.length === 0) {
       return new Response("expected { url: string }", { status: 400 })
     }
-    // Set-if-absent. A racing client whose PUT lost discovers the winner via
-    // the returned URL and adopts it instead of orphaning its own root doc.
-    const existing = await repoStore.load(DEFAULT_ROOT_KEY)
-    if (existing) {
-      return Response.json({ url: new TextDecoder().decode(existing) })
-    }
-    await repoStore.save(DEFAULT_ROOT_KEY, new TextEncoder().encode(body.url))
-    return Response.json({ url: body.url })
+    const winner = await repoStore.loadOrInit(
+      DEFAULT_ROOT_KEY,
+      new TextEncoder().encode(body.url)
+    )
+    return Response.json({ url: new TextDecoder().decode(winner) })
   }
 
   return new Response("method not allowed", {
