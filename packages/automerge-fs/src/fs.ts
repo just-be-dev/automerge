@@ -14,8 +14,8 @@
 
 import * as Automerge from "@automerge/automerge"
 import { Repo, type DocHandle, type AutomergeUrl } from "@automerge/automerge-repo"
-import { FileHandlerRegistry, type FileHandler, type TypedDoc, textFileHandler, type TextFileDoc, createBlobFileHandler, formatDocType } from "./file-handlers"
-import type { BlobStore } from "./blob-store"
+import { FileHandlerRegistry, type FileHandler, type TypedDoc, textFileHandler, type TextFileDoc, createBlobFileHandler, formatDocType } from "./file-handlers/index.ts"
+import type { BlobStore } from "./blob-store.ts"
 
 // =============================================================================
 // Document Schema

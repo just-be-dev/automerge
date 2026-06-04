@@ -10,9 +10,9 @@ import { Effect, Layer, Option, ServiceMap, Stream } from "effect"
 import { FileSystem, make as makeFileSystem, Size, type File as FsFile } from "effect/FileSystem"
 import { systemError, badArgument, type PlatformError } from "effect/PlatformError"
 import type { Repo } from "@automerge/automerge-repo"
-import { AutomergeFs, normalizePath, joinPath } from "./fs"
-import { InMemoryBlobStore, type BlobStore } from "./blob-store"
-import type { FileHandler } from "./file-handlers"
+import { AutomergeFs, normalizePath, joinPath } from "./fs.ts"
+import { InMemoryBlobStore, type BlobStore } from "./blob-store.ts"
+import type { FileHandler } from "./file-handlers/index.ts"
 
 // =============================================================================
 // Service Tags

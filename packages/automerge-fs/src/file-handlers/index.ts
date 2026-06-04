@@ -22,7 +22,7 @@ import {
 // Re-exports from lens module
 // =============================================================================
 
-export { type TypedDoc, type FileHandlerLens, parseDocType, formatDocType, applyLenses } from "./utils/lens"
+export { type TypedDoc, type FileHandlerLens, parseDocType, formatDocType, applyLenses } from "./utils/lens.ts"
 
 // =============================================================================
 // FileHandler Interface
@@ -159,8 +159,8 @@ export class FileHandlerRegistry {
 // Re-exports
 // =============================================================================
 
-export { textFileHandler, type TextFileDoc } from "./text"
-export { createBlobFileHandler, type BlobFileDoc } from "./blob"
+export { textFileHandler, type TextFileDoc } from "./text.ts"
+export { createBlobFileHandler, type BlobFileDoc } from "./blob.ts"
 
 // =============================================================================
 // Internal Helpers
