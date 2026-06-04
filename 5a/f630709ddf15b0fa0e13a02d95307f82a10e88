@@ -1,0 +1,29 @@
+apps/worker/src/index.ts
+  s_4ac13daf485977::t_edf8eacda9a1ff 1
+  s_0bcabfe29967d3::t_89b4fc58560fa3 60-64
+  s_0bcabfe29967d3::t_093c04634d0b3f 3-6,8-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5af630709ddf15b0fa0e13a02d95307f82a10e88",
+  "prompts": {},
+  "sessions": {
+    "s_0bcabfe29967d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3e51a5b-ceed-4bc8-a250-4f03700b07a5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    },
+    "s_4ac13daf485977": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd660cf7-2749-4fa5-bfa5-02596825f88a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
