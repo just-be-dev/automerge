@@ -8,10 +8,13 @@ Designed around a **one-Durable-Object-per-document** architecture with full hib
 
 | Subpath | Description |
 |---|---|
+| `@just-be/automerge-cloudflare` | `AutomergeDO` — a batteries-included per-document Durable Object composing the network and storage halves below |
 | `@just-be/automerge-cloudflare/storage` | Two-tier Durable Object storage (top-level router + per-document store) with a client-side `StorageAdapterInterface` |
 | `@just-be/automerge-cloudflare/network` | WebSocket network adapter + Worker routing helper |
 
 ## Architecture
+
+The root export, **`AutomergeDO`**, is a per-document Durable Object that hosts an Automerge `Repo`, accepts client WebSockets (with hibernation), and persists chunks through the storage layer. Subclass it to customize the repo-store id or peer id.
 
 Storage is split across **two** Durable Object classes plus a small client-side library:
 
@@ -23,82 +26,40 @@ Why two DO layers? The router gives the repo a single addressable stub (one bind
 
 ## Quick start
 
-### 1. Define your application Durable Object
+### 1. Wire up your Worker
 
-```ts
-// src/do.ts
-import { DurableObject } from "cloudflare:workers"
-import { Repo } from "@automerge/automerge-repo"
-import {
-  RepoStoreAdapter,
-  RepoStoreDO,
-  DocStoreDO,
-} from "@just-be/automerge-cloudflare/storage"
-import { DONetworkAdapter } from "@just-be/automerge-cloudflare/network"
-
-// Re-export the storage DOs so wrangler can bind them.
-export { RepoStoreDO, DocStoreDO }
-
-interface Env {
-  AUTOMERGE_REPO_STORE: DurableObjectNamespace<RepoStoreDO>
-  AUTOMERGE_DOC_STORE: DurableObjectNamespace<DocStoreDO>
-  AUTOMERGE_R2?: R2Bucket
-}
-
-export class AutomergeDO extends DurableObject<Env> {
-  #network = new DONetworkAdapter(this.ctx)
-  #repo: Repo
-
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env)
-    const stub = env.AUTOMERGE_REPO_STORE.get(
-      env.AUTOMERGE_REPO_STORE.idFromName("default")
-    )
-    this.#repo = new Repo({
-      network: [this.#network],
-      storage: new RepoStoreAdapter(stub),
-      peerId: `do-${this.ctx.id.toString()}` as any,
-      isEphemeral: false,
-    })
-  }
-
-  async fetch(request: Request): Promise<Response> {
-    const { 0: client, 1: server } = new WebSocketPair()
-    this.ctx.acceptWebSocket(server)
-    return new Response(null, { status: 101, webSocket: client })
-  }
-
-  webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
-    this.#network.receiveMessage(ws, message)
-  }
-
-  webSocketClose(ws: WebSocket) {
-    this.#network.handleClose(ws)
-  }
-
-  webSocketError(ws: WebSocket) {
-    this.#network.handleClose(ws)
-  }
-}
-```
-
-### 2. Route requests from your Worker
+`AutomergeDO` is ready to use as-is — re-export the three DO classes so wrangler can bind them, and route WebSocket upgrades with `routeWebSocket`:
 
 ```ts
 // src/index.ts
+import { AutomergeDO } from "@just-be/automerge-cloudflare"
 import { routeWebSocket } from "@just-be/automerge-cloudflare/network"
+import {
+  RepoStoreDO,
+  DocStoreDO,
+} from "@just-be/automerge-cloudflare/storage"
+
+// Cloudflare requires DO classes to be exported from the entry module.
+export { AutomergeDO, RepoStoreDO, DocStoreDO }
 
 interface Env {
-  AUTOMERGE_DO: DurableObjectNamespace
+  AUTOMERGE_DO: DurableObjectNamespace<AutomergeDO>
 }
-
-export { AutomergeDO } from "./do"
-export { RepoStoreDO, DocStoreDO } from "./do"
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     return routeWebSocket({ request, namespace: env.AUTOMERGE_DO })
   },
+}
+```
+
+Subclass `AutomergeDO` to customize the repo-store DO name or peer id:
+
+```ts
+export class MyAutomergeDO extends AutomergeDO {
+  protected override repoStoreId() {
+    return this.ctx.id.toString() // one repo store per document
+  }
 }
 ```
 
@@ -112,7 +73,7 @@ routeWebSocket({
 })
 ```
 
-### 3. Configure wrangler
+### 2. Configure wrangler
 
 ```toml
 # wrangler.toml
@@ -142,7 +103,7 @@ tag = "v1"
 new_sqlite_classes = ["AutomergeDO", "RepoStoreDO", "DocStoreDO"]
 ```
 
-### 4. Connect from a client
+### 3. Connect from a client
 
 Use the standard [`@automerge/automerge-repo-network-websocket`](https://github.com/automerge/automerge-repo/tree/main/packages/automerge-repo-network-websocket) client adapter, pointed at your Worker URL with the document ID in the path:
 
@@ -154,6 +115,26 @@ const repo = new Repo({
   network: [new BrowserWebSocketClientAdapter("wss://your-worker.workers.dev/doc/abc123")],
 })
 ```
+
+## Advanced: build your own DO
+
+`AutomergeDO` is a thin composition — if you need a different storage layer or extra behavior beyond what subclassing offers, assemble the pieces yourself: construct a `DONetworkAdapter` with the DO's `ctx`, hand it to `new Repo(...)` alongside a `RepoStoreAdapter` (or any `StorageAdapterInterface`), and forward the DO's `webSocketMessage`/`webSocketClose`/`webSocketError` handlers to the adapter's `receiveMessage`/`handleClose`. The [`AutomergeDO` source](./src/automerge-do.ts) is the reference implementation.
+
+## Naming a root document: `loadOrInit`
+
+`RepoStoreDO` exposes one RPC beyond the storage interface: `loadOrInit(key, value)` — an atomic set-if-absent for **single-segment meta keys**. Use it to name a well-known root document URL exactly once across racing clients:
+
+```ts
+const stub = env.AUTOMERGE_REPO_STORE.get(
+  env.AUTOMERGE_REPO_STORE.idFromName("default")
+)
+const winner = await stub.loadOrInit(
+  ["default-root"],
+  new TextEncoder().encode(handle.url)
+)
+```
+
+Atomicity relies on the router DO handling meta keys synchronously in its own SQLite, so doc-scoped (multi-segment) keys are rejected — routing those would open the DO's input gate mid-operation.
 
 ## Archive tier (R2)
 

@@ -1,16 +1,64 @@
 {
   "name": "@just-be/automerge-cloudflare",
   "version": "0.0.1",
+  "description": "Automerge storage and network primitives for Cloudflare Workers — one-Durable-Object-per-document with WebSocket hibernation and an optional R2 archive tier.",
   "type": "module",
-  "private": true,
+  "license": "MIT",
+  "author": "Justin Bennett <ai@just-be.dev>",
+  "homepage": "https://github.com/just-be-dev/dockit/tree/main/packages/automerge-cloudflare#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/just-be-dev/dockit.git",
+    "directory": "packages/automerge-cloudflare"
+  },
+  "bugs": {
+    "url": "https://github.com/just-be-dev/dockit/issues"
+  },
+  "keywords": [
+    "automerge",
+    "automerge-repo",
+    "cloudflare",
+    "cloudflare-workers",
+    "durable-objects",
+    "crdt",
+    "websocket",
+    "r2"
+  ],
   "exports": {
-    "./storage": "./src/storage/index.ts",
-    "./network": "./src/network/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "import": "./dist/storage/index.js",
+      "default": "./dist/storage/index.js"
+    },
+    "./network": {
+      "types": "./dist/network/index.d.ts",
+      "import": "./dist/network/index.js",
+      "default": "./dist/network/index.js"
+    }
   },
-  "dependencies": {
-    "@automerge/automerge-repo": "*"
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsgo --build",
+    "prepack": "tsgo --build"
   },
-  "devDependencies": {
-    "@cloudflare/workers-types": "*"
+  "peerDependencies": {
+    "@automerge/automerge-repo": "^2.5.0",
+    "@cloudflare/workers-types": "^4.20240101.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
