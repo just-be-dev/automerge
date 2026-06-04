@@ -1,0 +1,41 @@
+packages/automerge-fs/src/file-handlers/text.ts
+  s_1496faf05c85cb::t_2273eaa37c07d8 10
+packages/automerge-fs/src/file-handlers/index.ts
+  s_1496faf05c85cb::t_6428de0d2cdc8b 162-163
+  s_1496faf05c85cb::t_6840dcf397c17f 25
+packages/automerge-fs/package.json
+  s_1496faf05c85cb::t_55fe0f49e503a4 4,6-25,27-49,51,53-54,56-59,63-65
+packages/automerge-fs/src/effect.ts
+  s_1496faf05c85cb::t_0c4d34349852bd 13-15
+packages/automerge-fs/tsconfig.json
+  s_1496faf05c85cb::t_c456a5d17fdd04 8-9
+packages/automerge-fs/src/fs.ts
+  s_1496faf05c85cb::t_3b7c46d7c219ae 17-18
+packages/automerge-fs/src/fs.test.ts
+  s_1496faf05c85cb::t_185c4fc71ecd5e 12
+  s_1496faf05c85cb::t_d46a52563a0dc4 3-4
+packages/automerge-fs/LICENSE
+  s_1496faf05c85cb::t_9172bf4269850c 1-21
+packages/automerge-fs/src/effect.test.ts
+  s_1496faf05c85cb::t_c7590f05f7eef2 5-7
+packages/automerge-fs/src/file-handlers/blob.ts
+  s_1496faf05c85cb::t_986c5a4986f737 12-13
+packages/automerge-fs/src/index.ts
+  s_1496faf05c85cb::t_9e4d1bdff8ddf7 1-2,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a5b2dfdad649009a7aa596fd1d1b39223d82788b",
+  "prompts": {},
+  "sessions": {
+    "s_1496faf05c85cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05df6285-e108-4782-a819-3a58d0c70330",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
