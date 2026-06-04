@@ -1,0 +1,31 @@
+mise.toml
+  s_1496faf05c85cb::t_768cbfa8bfcedb 21
+.gitignore
+  s_1496faf05c85cb::t_49b118abd838f3 37
+CLAUDE.md
+  s_4ac13daf485977::t_edcf5cf41e3f4c 11-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6bf098ef75822e79e230b450e14429fa71033160",
+  "prompts": {},
+  "sessions": {
+    "s_1496faf05c85cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05df6285-e108-4782-a819-3a58d0c70330",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    },
+    "s_4ac13daf485977": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd660cf7-2749-4fa5-bfa5-02596825f88a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
