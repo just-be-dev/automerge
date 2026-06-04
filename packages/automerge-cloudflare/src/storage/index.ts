@@ -1,4 +1,6 @@
-export { DocStoreCore } from "./doc-store-core.ts"
+import "../polyfill.ts"
+export type { StorageOps } from "./types.ts"
+export { DocStoreCore, type ChunkStore } from "./doc-store-core.ts"
 export { DocStoreDO, type DocStoreEnv } from "./doc-store-do.ts"
 export {
   RepoStoreCore,

@@ -217,8 +217,8 @@ class SqliteStore implements ChunkStore {
             .toArray()
         : this.#sql
             .exec<{ key: string; data: ArrayBuffer }>(
-              "SELECT key, data FROM automerge_storage WHERE key LIKE ? || '%'",
-              joinKey(prefix) + "/"
+              "SELECT key, data FROM automerge_storage WHERE key LIKE ? ESCAPE '\\'",
+              likePrefix(joinKey(prefix) + "/")
             )
             .toArray()
 
@@ -234,8 +234,8 @@ class SqliteStore implements ChunkStore {
       return
     }
     this.#sql.exec(
-      "DELETE FROM automerge_storage WHERE key LIKE ? || '%'",
-      joinKey(prefix) + "/"
+      "DELETE FROM automerge_storage WHERE key LIKE ? ESCAPE '\\'",
+      likePrefix(joinKey(prefix) + "/")
     )
   }
 
@@ -250,6 +250,14 @@ function joinKey(key: StorageKey): string {
 
 function splitKey(s: string): StorageKey {
   return s.split("/")
+}
+
+/**
+ * Build a LIKE pattern that matches `prefix` literally. Key segments are
+ * caller-controlled, so `%`/`_` in them must not act as wildcards.
+ */
+function likePrefix(prefix: string): string {
+  return prefix.replace(/[\\%_]/g, (c) => "\\" + c) + "%"
 }
 
 // ── Archive tier: R2 bucket ───────────────────────────────────────────

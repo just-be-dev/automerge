@@ -392,6 +392,54 @@ describe("RepoStoreCore unknown-doc short-circuit", () => {
   })
 })
 
+describe("RepoStoreCore loadOrInit", () => {
+  it("stores and returns the value when the key is absent", async () => {
+    const meta = new MemoryMetaStore()
+    const repo = newRepo(
+      () => {
+        throw new Error("resolve must not be called")
+      },
+      { meta }
+    )
+
+    const value = new TextEncoder().encode("automerge:abc123")
+    expect(await repo.loadOrInit(["default-root"], value)).toEqual(value)
+    expect(await meta.load(["default-root"])).toEqual(value)
+  })
+
+  it("returns the existing value unchanged when the key is present", async () => {
+    const repo = newRepo(() => {
+      throw new Error("resolve must not be called")
+    })
+
+    const first = new TextEncoder().encode("winner")
+    const second = new TextEncoder().encode("loser")
+    await repo.loadOrInit(["default-root"], first)
+    expect(await repo.loadOrInit(["default-root"], second)).toEqual(first)
+    expect(await repo.load(["default-root"])).toEqual(first)
+  })
+
+  it("rejects doc-scoped (multi-segment) keys", async () => {
+    const repo = newRepo(() => {
+      throw new Error("resolve must not be called")
+    })
+
+    await expect(
+      repo.loadOrInit(["docA", "root"], new Uint8Array([1]))
+    ).rejects.toThrow("single-segment")
+  })
+
+  it("rejects an empty key", async () => {
+    const repo = newRepo(() => {
+      throw new Error("resolve must not be called")
+    })
+
+    await expect(repo.loadOrInit([], new Uint8Array([1]))).rejects.toThrow(
+      "documentId"
+    )
+  })
+})
+
 // ── RepoStoreAdapter ──────────────────────────────────────────────────
 
 describe("RepoStoreAdapter", () => {

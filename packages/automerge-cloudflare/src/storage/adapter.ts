@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { RepoStoreAdapter } from "@just-be/automerge-cloudflare/storage/repo"
+ * import { RepoStoreAdapter } from "@just-be/automerge-cloudflare/storage"
  *
  * export class MyAppDO extends DurableObject<Env> {
  *   #repo: Repo
@@ -30,19 +30,18 @@ import type {
   StorageKey,
 } from "@automerge/automerge-repo"
 import type { RepoStoreDO } from "./repo-store-do.ts"
+import type { StorageOps } from "./types.ts"
 
 /**
- * Minimal shape of the RPC surface exposed by RepoStoreDO. Accepting this
- * interface (instead of a concrete `DurableObjectStub<RepoStoreDO>`) keeps
- * the adapter testable without the Workers runtime.
+ * The part of RepoStoreDO's RPC surface this adapter delegates to. Accepting
+ * this interface (instead of a concrete `DurableObjectStub<RepoStoreDO>`)
+ * keeps the adapter testable without the Workers runtime.
+ *
+ * Deliberately excludes `loadOrInit` — that RPC is an application-level
+ * convenience, not part of automerge-repo's `StorageAdapterInterface`, so
+ * the adapter never calls it.
  */
-export interface RepoStoreRpc {
-  load(key: StorageKey): Promise<Uint8Array | undefined>
-  save(key: StorageKey, data: Uint8Array): Promise<void>
-  remove(key: StorageKey): Promise<void>
-  loadRange(prefix: StorageKey): Promise<Chunk[]>
-  removeRange(prefix: StorageKey): Promise<void>
-}
+export type RepoStoreRpc = StorageOps
 
 export class RepoStoreAdapter implements StorageAdapterInterface {
   #stub: RepoStoreRpc

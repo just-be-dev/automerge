@@ -15,21 +15,18 @@ import type {
   StorageAdapterInterface,
   StorageKey,
 } from "@automerge/automerge-repo"
+import type { StorageOps } from "./types.ts"
 
 /**
- * Minimal storage contract for a single tier (store or archive). Mirrors
+ * Storage contract for a single tier (store or archive). Mirrors
  * automerge-repo's {@link StorageAdapterInterface} so the same in-memory
  * test doubles work for both.
  *
- * Internal: not exposed as a public extension point. Consumers wire up
- * storage by constructing a {@link DocStoreDO}, not by implementing this.
+ * Most consumers wire up storage by binding a {@link DocStoreDO} and never
+ * touch this; implement it (and construct a {@link DocStoreCore} directly)
+ * only when supplying custom tiers outside the DO wrapper.
  */
-export interface ChunkStore {
-  load(key: StorageKey): Promise<Uint8Array | undefined>
-  save(key: StorageKey, data: Uint8Array): Promise<void>
-  remove(key: StorageKey): Promise<void>
-  loadRange(prefix: StorageKey): Promise<Chunk[]>
-  removeRange(prefix: StorageKey): Promise<void>
+export interface ChunkStore extends StorageOps {
   /** Optional batch save — used by `hydrate`/`flushToArchive` when present. */
   saveChunks?(chunks: Chunk[]): Promise<void>
   /** Optional fast wipe — used by `clearAll` when present. */
@@ -87,14 +84,15 @@ export class DocStoreCore implements StorageAdapterInterface {
 
     const storeKeys = new Set(storeChunks.map((c) => JSON.stringify(c.key)))
     const toPromote = archiveChunks.filter(
-      (c) => c.data !== undefined && !storeKeys.has(JSON.stringify(c.key))
+      (c): c is Chunk & { data: Uint8Array } =>
+        c.data !== undefined && !storeKeys.has(JSON.stringify(c.key))
     )
     if (toPromote.length > 0) {
       if (this.#store.saveChunks) {
         await this.#store.saveChunks(toPromote)
       } else {
         await Promise.all(
-          toPromote.map((c) => this.#store.save(c.key, c.data!))
+          toPromote.map((c) => this.#store.save(c.key, c.data))
         )
       }
     }
@@ -148,7 +146,11 @@ async function copyChunks(
   dst: ChunkStore,
   prefix: StorageKey
 ): Promise<void> {
-  const chunks = await src.loadRange(prefix)
+  // Chunk.data is optional in the automerge-repo type; neither tier here
+  // produces dataless chunks, but skip them rather than assert.
+  const chunks = (await src.loadRange(prefix)).filter(
+    (c): c is Chunk & { data: Uint8Array } => c.data !== undefined
+  )
   if (chunks.length === 0) return
 
   if (dst.saveChunks) {
@@ -158,6 +160,6 @@ async function copyChunks(
 
   for (let i = 0; i < chunks.length; i += COPY_BATCH_SIZE) {
     const slice = chunks.slice(i, i + COPY_BATCH_SIZE)
-    await Promise.all(slice.map((c) => dst.save(c.key, c.data!)))
+    await Promise.all(slice.map((c) => dst.save(c.key, c.data)))
   }
 }

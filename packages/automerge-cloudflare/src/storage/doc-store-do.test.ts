@@ -41,6 +41,13 @@ function makeSql(db: Database) {
 
 class MemoryR2 {
   objects = new Map<string, Uint8Array>()
+  listCalls = 0
+  #pageSize: number
+
+  /** `pageSize` caps each `list` page to exercise cursor pagination. */
+  constructor(pageSize = Number.POSITIVE_INFINITY) {
+    this.#pageSize = pageSize
+  }
 
   async get(key: string) {
     const v = this.objects.get(key)
@@ -63,12 +70,20 @@ class MemoryR2 {
     }
   }
 
-  async list(opts: { prefix?: string }) {
+  async list(opts: { prefix?: string; cursor?: string }) {
+    this.listCalls++
     const prefix = opts.prefix ?? ""
-    const objects = Array.from(this.objects.keys())
+    const all = Array.from(this.objects.keys())
       .filter((k) => k.startsWith(prefix))
-      .map((key) => ({ key }))
-    return { objects, truncated: false as const }
+      .sort()
+    const start = opts.cursor ? Number(opts.cursor) : 0
+    const page = all.slice(start, start + this.#pageSize)
+    const truncated = start + page.length < all.length
+    return {
+      objects: page.map((key) => ({ key })),
+      truncated,
+      cursor: truncated ? String(start + page.length) : undefined,
+    }
   }
 }
 
@@ -226,5 +241,52 @@ describe("DocStoreDO idle-flush alarm", () => {
     })
     await doc.save(["doc1", "snapshot", "h1"], new Uint8Array([1]))
     expect(ctx.setAlarm).toHaveBeenCalledWith(T0 + 90_000)
+  })
+})
+
+describe("SqliteStore prefix matching", () => {
+  it("does not treat LIKE wildcards in key segments as wildcards", async () => {
+    const ctx = makeCtx()
+    const doc = new DocStoreDO(ctx.state as never, {})
+
+    // Without ESCAPE, the `_` in "doc_1" would match any character and the
+    // "docX1" rows would leak into doc_1's range ops.
+    await doc.save(["doc_1", "snapshot", "h1"], new Uint8Array([1]))
+    await doc.save(["docX1", "snapshot", "h2"], new Uint8Array([2]))
+    await doc.save(["doc%1", "snapshot", "h3"], new Uint8Array([3]))
+
+    const chunks = await doc.loadRange(["doc_1"])
+    expect(chunks.map((c) => c.key)).toEqual([["doc_1", "snapshot", "h1"]])
+
+    await doc.removeRange(["doc_1"])
+    expect(countChunks(ctx.db)).toBe(2)
+    expect(await doc.load(["docX1", "snapshot", "h2"])).toEqual(
+      new Uint8Array([2])
+    )
+    expect(await doc.load(["doc%1", "snapshot", "h3"])).toEqual(
+      new Uint8Array([3])
+    )
+  })
+})
+
+describe("R2Archive pagination", () => {
+  it("hydrate follows list cursors across truncated pages", async () => {
+    const ctx = makeCtx()
+    const r2 = new MemoryR2(2) // 2 keys per page → 5 keys = 3 pages
+    const doc = new DocStoreDO(ctx.state as never, {
+      AUTOMERGE_R2: r2 as never,
+    })
+
+    for (let i = 0; i < 5; i++) {
+      await r2.put(`doc1/snapshot/h${i}`, new Uint8Array([i]))
+    }
+
+    await doc.hydrate(["doc1"])
+
+    expect(countChunks(ctx.db)).toBe(5)
+    expect(r2.listCalls).toBe(3)
+    expect(await doc.load(["doc1", "snapshot", "h4"])).toEqual(
+      new Uint8Array([4])
+    )
   })
 })

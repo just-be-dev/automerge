@@ -26,19 +26,14 @@ import type {
   StorageAdapterInterface,
   StorageKey,
 } from "@automerge/automerge-repo"
+import type { StorageOps } from "./types.ts"
 
 /**
  * The subset of {@link DocStoreCore}/{@link DocStoreDO} that the router calls.
  * Implementations: a local {@link DocStoreCore} (tests), or a
  * {@link DurableObjectStub}`<DocStoreDO>` (production).
  */
-export interface DocStoreInterface {
-  load(key: StorageKey): Promise<Uint8Array | undefined>
-  save(key: StorageKey, data: Uint8Array): Promise<void>
-  remove(key: StorageKey): Promise<void>
-  loadRange(prefix: StorageKey): Promise<Chunk[]>
-  removeRange(prefix: StorageKey): Promise<void>
-}
+export type DocStoreInterface = StorageOps
 
 /**
  * Backing store for adapter-internal metadata: single-segment keys that
@@ -46,11 +41,7 @@ export interface DocStoreInterface {
  * the stable identity automerge-repo writes once and reads on subsequent
  * boots to detect adapter swaps.
  */
-export interface MetaStore {
-  load(key: StorageKey): Promise<Uint8Array | undefined>
-  save(key: StorageKey, data: Uint8Array): Promise<void>
-  remove(key: StorageKey): Promise<void>
-}
+export type MetaStore = Pick<StorageOps, "load" | "save" | "remove">
 
 /**
  * Authoritative index of documentIds the repo has stored at least one chunk
@@ -116,6 +107,32 @@ export class RepoStoreCore implements StorageAdapterInterface {
     )
     if (!(await this.#index.has(first))) return
     return this.#resolve(first).removeRange(prefix)
+  }
+
+  /**
+   * Atomic set-if-absent for **meta keys only** (single-segment keys handled
+   * by the {@link MetaStore}). If `key` already has a value, returns it
+   * unchanged; otherwise stores `value` and returns it. Useful for naming a
+   * well-known root document URL exactly once across racing clients.
+   *
+   * Atomicity rests on the surrounding `RepoStoreDO` handling the meta
+   * load/save synchronously (its SQLite ops don't open the DO's input gate),
+   * so call this through a single `RepoStoreDO` stub if multiple writers may
+   * race. Doc-scoped keys are rejected: routing them would mean an outgoing
+   * RPC between the load and the save, during which the input gate opens and
+   * a racing call could interleave.
+   */
+  async loadOrInit(key: StorageKey, value: Uint8Array): Promise<Uint8Array> {
+    requireDocId(key)
+    if (key.length !== 1) {
+      throw new Error(
+        "loadOrInit only supports single-segment meta keys — doc-scoped keys cannot be set atomically through the router"
+      )
+    }
+    const existing = await this.load(key)
+    if (existing !== undefined) return existing
+    await this.save(key, value)
+    return value
   }
 }
 

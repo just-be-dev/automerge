@@ -95,6 +95,10 @@ export class RepoStoreDO<
   removeRange(prefix: StorageKey): Promise<void> {
     return this.#core.removeRange(prefix)
   }
+
+  loadOrInit(key: StorageKey, value: Uint8Array): Promise<Uint8Array> {
+    return this.#core.loadOrInit(key, value)
+  }
 }
 
 class SqliteMetaStore implements MetaStore {
