@@ -1,0 +1,55 @@
+packages/automerge-cloudflare/src/automerge-do.ts
+  s_4ac13daf485977::t_077f84720c9b28 26-31
+  s_4ac13daf485977::t_d83adf348b5d6e 15
+packages/automerge-cloudflare/src/index.ts
+  s_4ac13daf485977::t_3889f48648c292 1-9
+packages/automerge-cloudflare/src/polyfill.ts
+  s_0bcabfe29967d3::t_b314a6d3a17f60 1-10
+packages/automerge-cloudflare/package.json
+  s_1496faf05c85cb::t_0612d94a5c876e 4,6-26,28-48,52-55,57-59,61-62
+  s_1496faf05c85cb::t_18756f146a2eb4 49-51
+packages/automerge-cloudflare/LICENSE
+  s_1496faf05c85cb::t_5ece7ad5e127b4 1-21
+packages/automerge-cloudflare/README.md
+  s_4ac13daf485977::t_8a473615e2e3b3 29-31,34-36,42-43,46,49-52,56,59-62
+  s_4ac13daf485977::t_5643e4d302df60 106
+  s_4ac13daf485977::t_9da7adb8660b2a 76
+  s_4ac13daf485977::t_e3b4eb8a41a6a4 119-138
+  s_4ac13daf485977::t_43c10de7ccf32d 11,17
+packages/automerge-cloudflare/tsconfig.json
+  s_4ac13daf485977::t_2176546d4c4b8c 8-9
+packages/automerge-cloudflare/src/storage/types.ts
+  s_4ac13daf485977::t_2ba8a0460afeaa 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "57f4faec72ff3051323bc661d0919b0ae27f6409",
+  "prompts": {},
+  "sessions": {
+    "s_0bcabfe29967d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3e51a5b-ceed-4bc8-a250-4f03700b07a5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    },
+    "s_1496faf05c85cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05df6285-e108-4782-a819-3a58d0c70330",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    },
+    "s_4ac13daf485977": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd660cf7-2749-4fa5-bfa5-02596825f88a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Justin Bennett <git@just-be.dev>"
+    }
+  }
+}
