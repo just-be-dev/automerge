@@ -7,7 +7,7 @@
 
 import * as Automerge from "@automerge/automerge"
 import type { Repo, DocHandle } from "@automerge/automerge-repo"
-import type { FileHandler, TypedDoc } from "./"
+import type { FileHandler, TypedDoc } from "./index.ts"
 
 export interface TextFileDoc extends TypedDoc {
   content: string

@@ -1,5 +1,5 @@
-export { AutomergeFs, normalizePath, joinPath, type StatInfo, type DirEntry } from "./fs"
-export { type BlobStore, InMemoryBlobStore } from "./blob-store"
+export { AutomergeFs, normalizePath, joinPath, type StatInfo, type DirEntry } from "./fs.ts"
+export { type BlobStore, InMemoryBlobStore } from "./blob-store.ts"
 export {
   FileHandlerRegistry,
   type FileHandler,
@@ -11,4 +11,4 @@ export {
   textFileHandler,
   type TextFileDoc,
   type BlobFileDoc,
-} from "./file-handlers"
+} from "./file-handlers/index.ts"

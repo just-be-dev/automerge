@@ -9,8 +9,8 @@
  */
 
 import type { Repo, DocHandle } from "@automerge/automerge-repo"
-import type { BlobStore } from "../blob-store"
-import type { FileHandler, TypedDoc } from "./"
+import type { BlobStore } from "../blob-store.ts"
+import type { FileHandler, TypedDoc } from "./index.ts"
 
 export interface BlobFileDoc extends TypedDoc {
   blobRef: string

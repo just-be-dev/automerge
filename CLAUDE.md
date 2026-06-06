@@ -8,8 +8,10 @@ automerge-cloudflare — early-stage Bun monorepo. Workspace packages live in `p
 
 ### Packages
 
-- `@just-be/automerge-cloudflare` (`packages/automerge-cloudflare`) — Automerge integrations for Cloudflare Workers. Subpath exports:
-  - `@just-be/automerge-cloudflare/storage/r2` — R2 storage adapter
+- `@just-be/automerge-cloudflare` (`packages/automerge-cloudflare`) — Automerge integrations for Cloudflare Workers. Exports:
+  - `@just-be/automerge-cloudflare` (root) — `AutomergeDO`, a batteries-included per-document Durable Object composing the network + storage halves
+  - `@just-be/automerge-cloudflare/storage` — two-tier Durable Object storage (`RepoStoreDO` router + `DocStoreDO` per-document) and the `RepoStoreAdapter` library wrapper
+  - `@just-be/automerge-cloudflare/network` — WebSocket network adapter + Worker routing helper
 
 Package naming convention: `@just-be/automerge-<runtime>` (e.g. `automerge-cloudflare`, `automerge-bun`).
 

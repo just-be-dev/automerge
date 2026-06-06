@@ -1,6 +1,6 @@
 # @just-be/automerge-cloudflare
 
-[Automerge](https://automerge.org/) storage and network adapters for [Cloudflare Workers](https://developers.cloudflare.com/workers/).
+[Automerge](https://automerge.org/) storage and network primitives for [Cloudflare Workers](https://developers.cloudflare.com/workers/).
 
 Designed around a **one-Durable-Object-per-document** architecture with full hibernation support — clients stay connected while idle DOs sleep, with no billing for inactive time.
 
@@ -8,61 +8,43 @@ Designed around a **one-Durable-Object-per-document** architecture with full hib
 
 | Subpath | Description |
 |---|---|
-| `@just-be/automerge-cloudflare/storage/do` | Durable Object transactional storage adapter |
-| `@just-be/automerge-cloudflare/storage/r2` | R2 object storage adapter |
-| `@just-be/automerge-cloudflare/storage/d1` | D1 SQLite database adapter |
+| `@just-be/automerge-cloudflare` | `AutomergeDO` — a batteries-included per-document Durable Object composing the network and storage halves below |
+| `@just-be/automerge-cloudflare/storage` | Two-tier Durable Object storage (top-level router + per-document store) with a client-side `StorageAdapterInterface` |
 | `@just-be/automerge-cloudflare/network` | WebSocket network adapter + Worker routing helper |
+
+## Architecture
+
+The root export, **`AutomergeDO`**, is a per-document Durable Object that hosts an Automerge `Repo`, accepts client WebSockets (with hibernation), and persists chunks through the storage layer. Subclass it to customize the repo-store id or peer id.
+
+Storage is split across **two** Durable Object classes plus a small client-side library:
+
+- **`RepoStoreDO`** — top-level router. Implements automerge-repo's storage RPC surface; reads the documentId from each `StorageKey` (always `key[0]` per the [automerge-repo contract](https://github.com/automerge/automerge-repo/blob/main/packages/automerge-repo/src/storage/types.ts)) and forwards every call to that document's `DocStoreDO`. Stateless — no chunk data lives here.
+- **`DocStoreDO`** — per-document store. One instance per documentId, named via `idFromName(docId)`. Owns the chunks for that doc. The *store* tier is the DO's own SQLite storage; the *archive* tier is an optional R2 bucket bound via env. Writes go to the store only; reads fall through store → archive; removals propagate to both; tiering lifecycle (`hydrate`, `flushToArchive`, `clearAll`) is exposed for use from an alarm or external coordinator.
+- **`RepoStoreAdapter`** — the library wrapper. Implements automerge-repo's `StorageAdapterInterface` by delegating each call to a `RepoStoreDO` stub over DO RPC. This is what you hand to `new Repo({ storage })`.
+
+Why two DO layers? The router gives the repo a single addressable stub (one binding for the consumer), while per-doc DOs keep each document's storage in its own DO — letting writes/reads stay strongly consistent with that document's writers and allowing per-document lifecycle without cross-doc coordination.
 
 ## Quick start
 
-### 1. Define your Durable Object
+### 1. Wire up your Worker
 
-```ts
-// src/do.ts
-import { Repo } from "@automerge/automerge-repo"
-import { DOStorageAdapter } from "@just-be/automerge-cloudflare/storage/do"
-import { DONetworkAdapter } from "@just-be/automerge-cloudflare/network"
-
-export class AutomergeDO extends DurableObject {
-  #network = new DONetworkAdapter(this.ctx)
-  #repo = new Repo({
-    network: [this.#network],
-    storage: new DOStorageAdapter(this.ctx.storage),
-    peerId: `do-${this.ctx.id.toString()}` as any,
-    isEphemeral: false,
-  })
-
-  async fetch(request: Request): Promise<Response> {
-    const { 0: client, 1: server } = new WebSocketPair()
-    this.ctx.acceptWebSocket(server)
-    return new Response(null, { status: 101, webSocket: client })
-  }
-
-  webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
-    this.#network.receiveMessage(ws, message)
-  }
-
-  webSocketClose(ws: WebSocket) {
-    this.#network.handleClose(ws)
-  }
-
-  webSocketError(ws: WebSocket) {
-    this.#network.handleClose(ws)
-  }
-}
-```
-
-### 2. Route requests from your Worker
+`AutomergeDO` is ready to use as-is — re-export the three DO classes so wrangler can bind them, and route WebSocket upgrades with `routeWebSocket`:
 
 ```ts
 // src/index.ts
+import { AutomergeDO } from "@just-be/automerge-cloudflare"
 import { routeWebSocket } from "@just-be/automerge-cloudflare/network"
+import {
+  RepoStoreDO,
+  DocStoreDO,
+} from "@just-be/automerge-cloudflare/storage"
+
+// Cloudflare requires DO classes to be exported from the entry module.
+export { AutomergeDO, RepoStoreDO, DocStoreDO }
 
 interface Env {
-  AUTOMERGE_DO: DurableObjectNamespace
+  AUTOMERGE_DO: DurableObjectNamespace<AutomergeDO>
 }
-
-export { AutomergeDO } from "./do"
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -71,7 +53,17 @@ export default {
 }
 ```
 
-By default, `routeWebSocket` uses the last URL path segment as the document ID (e.g. `/doc/abc123` routes to the DO named `abc123`). Pass a custom `getDocumentId` function to change this:
+Subclass `AutomergeDO` to customize the repo-store DO name or peer id:
+
+```ts
+export class MyAutomergeDO extends AutomergeDO {
+  protected override repoStoreId() {
+    return this.ctx.id.toString() // one repo store per document
+  }
+}
+```
+
+`routeWebSocket` uses the last URL path segment as the document ID (e.g. `/doc/abc123` routes to the DO named `abc123`). Pass a custom `getDocumentId` function to change this:
 
 ```ts
 routeWebSocket({
@@ -81,7 +73,7 @@ routeWebSocket({
 })
 ```
 
-### 3. Configure wrangler
+### 2. Configure wrangler
 
 ```toml
 # wrangler.toml
@@ -93,12 +85,25 @@ compatibility_date = "2024-01-01"
 name = "AUTOMERGE_DO"
 class_name = "AutomergeDO"
 
+[[durable_objects.bindings]]
+name = "AUTOMERGE_REPO_STORE"
+class_name = "RepoStoreDO"
+
+[[durable_objects.bindings]]
+name = "AUTOMERGE_DOC_STORE"
+class_name = "DocStoreDO"
+
+# Optional cold tier for the per-doc DOs.
+[[r2_buckets]]
+binding = "AUTOMERGE_R2"
+bucket_name = "automerge-cold"
+
 [[migrations]]
 tag = "v1"
-new_classes = ["AutomergeDO"]
+new_sqlite_classes = ["AutomergeDO", "RepoStoreDO", "DocStoreDO"]
 ```
 
-### 4. Connect from a client
+### 3. Connect from a client
 
 Use the standard [`@automerge/automerge-repo-network-websocket`](https://github.com/automerge/automerge-repo/tree/main/packages/automerge-repo-network-websocket) client adapter, pointed at your Worker URL with the document ID in the path:
 
@@ -111,44 +116,56 @@ const repo = new Repo({
 })
 ```
 
-## Storage adapters
+## Advanced: build your own DO
 
-All three storage adapters implement automerge-repo's `StorageAdapterInterface`. They use the same key layout (the first two characters of the document ID are used as a shard prefix), so data written by one adapter can be read by another.
+`AutomergeDO` is a thin composition — if you need a different storage layer or extra behavior beyond what subclassing offers, assemble the pieces yourself: construct a `DONetworkAdapter` with the DO's `ctx`, hand it to `new Repo(...)` alongside a `RepoStoreAdapter` (or any `StorageAdapterInterface`), and forward the DO's `webSocketMessage`/`webSocketClose`/`webSocketError` handlers to the adapter's `receiveMessage`/`handleClose`. The [`AutomergeDO` source](./src/automerge-do.ts) is the reference implementation.
 
-### Durable Object storage
+## Naming a root document: `loadOrInit`
 
-Best for the one-DO-per-document pattern. Strongly consistent, co-located with the DO, no extra bindings needed.
-
-```ts
-import { DOStorageAdapter } from "@just-be/automerge-cloudflare/storage/do"
-
-const storage = new DOStorageAdapter(ctx.storage)
-```
-
-### R2
-
-Best for bulk/archival storage, large documents, or when you need data accessible outside Workers.
+`RepoStoreDO` exposes one RPC beyond the storage interface: `loadOrInit(key, value)` — an atomic set-if-absent for **single-segment meta keys**. Use it to name a well-known root document URL exactly once across racing clients:
 
 ```ts
-import { R2StorageAdapter } from "@just-be/automerge-cloudflare/storage/r2"
-
-const storage = new R2StorageAdapter(env.BUCKET)
-
-// Optional: namespace keys under a prefix
-const storage = new R2StorageAdapter(env.BUCKET, { prefix: "automerge/" })
+const stub = env.AUTOMERGE_REPO_STORE.get(
+  env.AUTOMERGE_REPO_STORE.idFromName("default")
+)
+const winner = await stub.loadOrInit(
+  ["default-root"],
+  new TextEncoder().encode(handle.url)
+)
 ```
 
-### D1
+Atomicity relies on the router DO handling meta keys synchronously in its own SQLite, so doc-scoped (multi-segment) keys are rejected — routing those would open the DO's input gate mid-operation.
 
-Best when you want to query document metadata alongside automerge data using SQL.
+## Archive tier (R2)
 
-```ts
-import { D1StorageAdapter } from "@just-be/automerge-cloudflare/storage/d1"
+Bind `AUTOMERGE_R2` in the env of `DocStoreDO` to enable an archive tier. When present:
 
-const storage = new D1StorageAdapter(env.DB)
+- **Writes** go to the store (DO SQLite) only.
+- **Reads** check the store first, then fall through to the archive. Archive hits are **promoted into the store** so subsequent reads stay hot (lazy hydration).
+- **Removes** propagate to both tiers so the read fallback can't resurrect deleted keys.
+
+### Idle-flush alarm
+
+When an archive is bound, `DocStoreDO` runs a per-doc alarm that flushes the whole store to the archive once the doc has been idle (no writes) for `AUTOMERGE_IDLE_FLUSH_MS` (default **7 days**). After a flush the chunks live only in R2; if the doc wakes up again, reads pull them back into the store on demand.
+
+Configure via `[vars]` in `wrangler.toml`:
+
+```toml
+[vars]
+AUTOMERGE_IDLE_FLUSH_MS = "604800000"  # 7 days (default)
 ```
 
-The table `automerge_storage` is created automatically on first use.
+Lifecycle methods on `DocStoreDO` (callable over DO RPC):
+
+| Method | Description |
+|---|---|
+| `hydrate(prefix)` | Copy chunks under `prefix` from archive → store. Idempotent. |
+| `flushToArchive(prefix)` | Move chunks under `prefix` from store → archive (copy then evict). Idempotent. |
+| `clearAll()` | Wipe the whole store tier (uses SQL `DELETE FROM ...`). Archive preserved. |
+
+To drop chunks without archiving them, call `removeRange(prefix)` — that's the normal `StorageAdapterInterface` op and it propagates to both tiers.
+
+For most workloads the built-in idle-flush alarm is sufficient; the explicit `flushToArchive` / `hydrate` / `clearAll` RPCs are there for cases where you want to drive the lifecycle from outside the DO.
 
 ## Hibernation
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from "bun:test"
 import { Effect, Layer } from "effect"
 import { FileSystem } from "effect/FileSystem"
 import { Repo } from "@automerge/automerge-repo"
-import { AutomergeFs } from "./fs"
-import { InMemoryBlobStore } from "./blob-store"
-import { AutomergeFsFileSystem, AutomergeFsInstance, InMemoryBlobStoreLayer, makeFs } from "./effect"
+import { AutomergeFs } from "./fs.ts"
+import { InMemoryBlobStore } from "./blob-store.ts"
+import { AutomergeFsFileSystem, AutomergeFsInstance, InMemoryBlobStoreLayer, makeFs } from "./effect.ts"
 
 function makeTestLayer() {
   return Layer.succeed(

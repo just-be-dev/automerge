@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import { Repo, type DocHandle } from "@automerge/automerge-repo"
-import { AutomergeFs } from "./fs"
-import { InMemoryBlobStore } from "./blob-store"
+import { AutomergeFs } from "./fs.ts"
+import { InMemoryBlobStore } from "./blob-store.ts"
 import {
   FileHandlerRegistry,
   parseDocType,
@@ -9,7 +9,7 @@ import {
   type FileHandler,
   type TypedDoc,
   type FileHandlerLens,
-} from "./file-handlers"
+} from "./file-handlers/index.ts"
 
 function makeFs() {
   return AutomergeFs.create({

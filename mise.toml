@@ -18,9 +18,18 @@ run = "bun test"
 run = "tsgo --build"
 
 [tasks.build]
-run = "bun build"
+run = "tsgo --build"
 
 [tasks.app]
-run = "bun run --cwd apps/{{arg(name=\"app\")}} dev"
+run = "bun run --cwd apps/$usage_app dev"
 description = "Run an app in dev mode"
+usage = "arg \"<app>\""
+
+[tasks."dev:worker"]
+description = "Run the Cloudflare worker locally on :8787"
+run = "bun run --cwd apps/worker dev"
+
+[tasks."dev:web"]
+description = "Run the workspace UI locally on :5173 (proxies /ws to the worker)"
+run = "bun run --cwd apps/workspace dev"
 

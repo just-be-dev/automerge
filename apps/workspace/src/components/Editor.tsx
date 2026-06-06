@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import type { AutomergeFs, TextFileDoc } from "@just-be/automerge-fs"
+import type { AutomergeFs } from "@just-be/automerge-fs"
 import { EditorState } from "@codemirror/state"
 import {
   EditorView,
@@ -46,7 +46,7 @@ export function Editor({ fs, path }: Props) {
 
     async function setup() {
       try {
-        const handle = await fs.getFileDocHandle<TextFileDoc>(path)
+        const handle = await fs.getFileDocHandle(path)
         await handle.whenReady()
 
         if (cancelled || !editorRoot.current) return

@@ -1,21 +1,67 @@
 {
   "name": "@just-be/automerge-fs",
   "version": "0.0.1",
+  "description": "A virtual filesystem backed by Automerge CRDTs — character-level merging for text files, pluggable blob store for binary, optional Effect FileSystem provider.",
   "type": "module",
-  "private": true,
+  "license": "MIT",
+  "author": "Justin Bennett <ai@just-be.dev>",
+  "homepage": "https://github.com/just-be-dev/dockit/tree/main/packages/automerge-fs#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/just-be-dev/dockit.git",
+    "directory": "packages/automerge-fs"
+  },
+  "bugs": {
+    "url": "https://github.com/just-be-dev/dockit/issues"
+  },
+  "keywords": [
+    "automerge",
+    "automerge-repo",
+    "crdt",
+    "filesystem",
+    "virtual-filesystem",
+    "vfs",
+    "effect"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./effect": "./src/effect.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./effect": {
+      "types": "./dist/effect.d.ts",
+      "import": "./dist/effect.js",
+      "default": "./dist/effect.js"
+    }
   },
-  "dependencies": {
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsgo --build",
+    "prepack": "tsgo --build"
+  },
+  "peerDependencies": {
     "@automerge/automerge": "^3.0.0",
-    "@automerge/automerge-repo": "^2.5.5"
+    "@automerge/automerge-repo": "^2.5.0",
+    "effect": ">=4.0.0-beta.35 <5"
   },
-  "optionalDependencies": {
-    "effect": "4.0.0-beta.35"
+  "peerDependenciesMeta": {
+    "effect": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "effect": "4.0.0-beta.35"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

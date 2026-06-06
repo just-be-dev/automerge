@@ -14,6 +14,7 @@
  * The DO uses {@link DONetworkAdapter} as its network adapter.
  */
 
+import "../polyfill.ts"
 import {
   NetworkAdapter,
   cbor,
@@ -57,34 +58,11 @@ interface SocketAttachment {
  * peer-to-socket mappings are persisted via WebSocket attachments and
  * restored from `ctx.getWebSockets()` on wake-up.
  *
- * Usage:
- * ```ts
- * export class AutomergeDO extends DurableObject {
- *   #adapter = new DONetworkAdapter(this.ctx)
- *   #repo = new Repo({
- *     network: [this.#adapter],
- *     storage: new DOStorageAdapter(this.ctx.storage),
- *   })
- *
- *   async fetch(request: Request): Promise<Response> {
- *     const { 0: client, 1: server } = new WebSocketPair()
- *     this.ctx.acceptWebSocket(server)
- *     return new Response(null, { status: 101, webSocket: client })
- *   }
- *
- *   webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
- *     this.#adapter.receiveMessage(ws, message)
- *   }
- *
- *   webSocketClose(ws: WebSocket) {
- *     this.#adapter.handleClose(ws)
- *   }
- *
- *   webSocketError(ws: WebSocket) {
- *     this.#adapter.handleClose(ws)
- *   }
- * }
- * ```
+ * The DO hosting this adapter must forward its `webSocketMessage` /
+ * `webSocketClose` / `webSocketError` handlers to {@link receiveMessage} and
+ * {@link handleClose}. The `AutomergeDO` class exported from the package
+ * root does exactly that — subclass it instead of wiring this up by hand
+ * unless you need a custom storage layer.
  */
 export class DONetworkAdapter extends NetworkAdapter {
   #ctx: DurableObjectState
@@ -176,6 +154,11 @@ export class DONetworkAdapter extends NetworkAdapter {
 
   /**
    * Called by the Repo to disconnect from all peers.
+   *
+   * Deliberately leaves the underlying WebSockets open (with their
+   * attachments intact): client connections are owned by the Cloudflare
+   * runtime, and a subsequent `connect()` re-adopts them via the same
+   * restore path used after hibernation.
    */
   disconnect(): void {
     for (const [peerId] of this.#sockets) {

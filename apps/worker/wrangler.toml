@@ -1,0 +1,23 @@
+name = "automerge-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[dev]
+port = 8787
+
+[[durable_objects.bindings]]
+name = "AUTOMERGE_DO"
+class_name = "AutomergeDO"
+
+[[durable_objects.bindings]]
+name = "AUTOMERGE_REPO_STORE"
+class_name = "RepoStoreDO"
+
+[[durable_objects.bindings]]
+name = "AUTOMERGE_DOC_STORE"
+class_name = "DocStoreDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AutomergeDO", "RepoStoreDO", "DocStoreDO"]

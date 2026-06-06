@@ -11,7 +11,7 @@
   "dependencies": {
     "@automerge/automerge-codemirror": "^0.2.0",
     "@automerge/automerge-repo": "^2.5.5",
-    "@automerge/react": "^2.5.5",
+    "@automerge/automerge-repo-network-websocket": "^2.5.4",
     "@codemirror/state": "^6.0.0",
     "@codemirror/view": "^6.0.0",
     "@just-be/automerge-fs": "workspace:*",
